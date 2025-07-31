@@ -1,6 +1,9 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import React, { useState, useMemo } from "react"
+import dynamic from 'next/dynamic'
+import Link from "next/link"
+import { useJobWithCandidates } from "@/hooks/use-data"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   ArrowLeft,
   MapPin,
@@ -31,10 +36,10 @@ import {
   X,
   Info,
   FileText,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
 } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import Link from "next/link"
 
 // TypeScript type for normalized job description
 export interface JobDescriptionJSON {
@@ -56,7 +61,25 @@ export function isNormalizedDescription(desc: unknown): desc is JobDescriptionJS
     Array.isArray((desc as any).sections)
   );
 }
-import { useJobWithCandidates } from "@/hooks/use-data"
+
+// Types for PDF viewer props
+interface PDFViewerProps {
+  cvUrl: string
+  candidateName?: string
+}
+
+// Dynamic import for PDF viewer to avoid SSR issues
+const PDFViewer = dynamic(() => import('./pdf-viewer'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-full">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading PDF Viewer...</p>
+      </div>
+    </div>
+  )
+}) as React.ComponentType<PDFViewerProps>
 
 interface JobDetailViewProps {
   jobId: string
@@ -424,13 +447,34 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   }
 
   const getCVUrl = (candidate: any) => {
-    // Convert candidate name back to filename format
-    const fileName = candidate.name
-      .toLowerCase()
-      .replace(/\s+/g, '-');
+    // Mapping of mock candidate names to actual PDF filenames
+    const nameToFileMap: Record<string, string> = {
+      // HR Data Analyst candidates
+      "Sarah Johnson": "arwa-lassoued-cv.pdf",
+      "Michael Chen": "baha-kahri-cv.pdf", 
+      "David Kim": "baha-khemiri-cv.pdf",
+      "Emily Rodriguez": "ferchichi-mehdi-cv.pdf",
+      "Lisa Thompson": "ghassen-bouzayen-cv.pdf",
+      "Alex Martinez": "imen-zarai-cv.pdf",
+      "James Wilson": "kais-garci-cv.pdf",
+      "Maria Garcia": "lamia-cherni-cv.pdf",
+      "Robert Brown": "mahdi-abdelhedi-cv.pdf",
+      "Jennifer Davis": "mohamed-gharghari-el-ayech-cv.pdf",
+      "John Smith": "rim-jamli-cv.pdf",
+      "Linda Wang": "safa-ochi-cv.pdf",
+    };
+    
+    // Use mapping if available, otherwise try to convert name
+    const fileName = nameToFileMap[candidate.name] || 
+      (candidate.name.toLowerCase().replace(/\s+/g, '-') + '-cv.pdf');
     
     // Use the API route to serve the CV
-    const url = `/api/cv/${encodeURIComponent(job?.title || '')}/${fileName}-cv.pdf`;
+    const jobTitle = job?.title || '';
+    const url = `/api/cv/${encodeURIComponent(jobTitle)}/${fileName}`;
+    console.log('Generated CV URL:', url);
+    console.log('For candidate:', candidate.name);
+    console.log('Using filename:', fileName);
+    console.log('Job title:', jobTitle);
     return url;
   }
 
@@ -809,7 +853,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                 {aiReportCandidate && (
                   <div className="mt-6 p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200 animate-slideDown">
                     {(() => {
-                      const candidate = paginatedApplicants.find(c => c.id === aiReportCandidate);
+                      const candidate = paginatedCandidates.find(c => c.id === aiReportCandidate);
                       if (!candidate) return null;
                       const aiReport = generateAIReport(candidate);
                       
@@ -1264,36 +1308,16 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                   </p>
                 </div>
               </div>
-              <div className="mr-8">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (viewingCV) {
-                      window.open(viewingCV.cvUrl, '_blank');
-                    }
-                  }}
-                  className="bg-white hover:bg-blue-50 border-blue-200 text-blue-600 shadow-sm px-3 py-1 h-auto text-xs"
-                >
-                  <Download className="h-4 w-4 mr-1" />
-                  Download
-                </Button>
-              </div>
             </DialogTitle>
           </DialogHeader>
 
           {/* CV Content */}
-          <div className="flex-1 bg-gray-50 p-2">
-            <div className="h-full bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+          <div className="flex-1 bg-gray-50">
+            <div className="h-[calc(90vh-60px)] bg-white">
               {viewingCV && (
-                <iframe
-                  src={viewingCV.cvUrl}
-                  className="w-full h-[calc(90vh-70px)] border-0"
-                  title="Resume PDF"
-                  onError={(e) => {
-                    console.error('Error loading PDF:', e);
-                    alert('Failed to load the resume. Try downloading instead.');
-                  }}
+                <PDFViewer 
+                  cvUrl={viewingCV.cvUrl}
+                  candidateName={paginatedCandidates.find(c => c.id === viewingCV.candidateId)?.name}
                 />
               )}
             </div>

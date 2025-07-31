@@ -46,12 +46,17 @@ export async function GET(
         break
     }
     
-    // Return the file with appropriate headers
+    // Return the file with appropriate headers for react-pdf
     return new NextResponse(fileBuffer, {
       headers: {
         'Content-Type': contentType,
         'Content-Disposition': `inline; filename="${path.basename(resolvedPath)}"`,
         'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Accept-Ranges': 'bytes',
+        'Content-Length': fileBuffer.length.toString(),
       },
     })
   } catch (error) {
