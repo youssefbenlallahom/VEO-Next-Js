@@ -33,6 +33,7 @@ import {
   FileText,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import Link from "next/link"
 
 // TypeScript type for normalized job description
@@ -116,6 +117,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState("aiScore")
   const [aiReportCandidate, setAiReportCandidate] = useState<number | null>(null)
+  const [viewingCV, setViewingCV] = useState<{candidateId: number, cvUrl: string} | null>(null)
 
   // Barem creation states
   const [baremName, setBaremName] = useState("")
@@ -419,6 +421,22 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
 
   const toggleAiReport = (candidateId: number) => {
     setAiReportCandidate(aiReportCandidate === candidateId ? null : candidateId)
+  }
+
+  const getCVUrl = (candidate: any) => {
+    // Convert candidate name back to filename format
+    const fileName = candidate.name
+      .toLowerCase()
+      .replace(/\s+/g, '-');
+    
+    // Use the API route to serve the CV
+    const url = `/api/cv/${encodeURIComponent(job?.title || '')}/${fileName}-cv.pdf`;
+    return url;
+  }
+
+  const viewCV = (candidate: any) => {
+    const cvUrl = getCVUrl(candidate);
+    setViewingCV({ candidateId: candidate.id, cvUrl });
   }
 
   return (
@@ -762,13 +780,14 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                           )}
                         </div>
                         <div className="flex gap-2">
-                          <Button variant="outline" size="sm" className="btn-secondary bg-transparent">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="btn-secondary bg-transparent"
+                            onClick={() => viewCV(applicant)}
+                          >
                             <Eye className="h-3 w-3 mr-1" />
                             Resume
-                          </Button>
-                          <Button variant="outline" size="sm" className="btn-secondary bg-transparent">
-                            <MessageSquare className="h-3 w-3 mr-1" />
-                            Contact
                           </Button>
                           <Button 
                             variant="outline" 
@@ -1221,6 +1240,66 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
           </div>
         </div>
       )}
+
+      {/* CV Viewer Modal */}
+      <Dialog open={!!viewingCV} onOpenChange={() => setViewingCV(null)}>
+        <DialogContent className="max-w-6xl h-[90vh] p-0 bg-white shadow-2xl">
+          {/* Header */}
+          <DialogHeader className="px-4 py-2 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+            <DialogTitle className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <div className="p-1 bg-blue-100 rounded-md">
+                  <Eye className="h-4 w-4 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-medium text-gray-900 leading-tight">
+                    {viewingCV && 
+                      paginatedCandidates.find(c => c.id === viewingCV.candidateId)?.name
+                    }
+                  </h3>
+                  <p className="text-xs text-gray-600">
+                    {viewingCV && 
+                      paginatedCandidates.find(c => c.id === viewingCV.candidateId)?.position
+                    }
+                  </p>
+                </div>
+              </div>
+              <div className="mr-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (viewingCV) {
+                      window.open(viewingCV.cvUrl, '_blank');
+                    }
+                  }}
+                  className="bg-white hover:bg-blue-50 border-blue-200 text-blue-600 shadow-sm px-3 py-1 h-auto text-xs"
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  Download
+                </Button>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* CV Content */}
+          <div className="flex-1 bg-gray-50 p-2">
+            <div className="h-full bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+              {viewingCV && (
+                <iframe
+                  src={viewingCV.cvUrl}
+                  className="w-full h-[calc(90vh-70px)] border-0"
+                  title="Resume PDF"
+                  onError={(e) => {
+                    console.error('Error loading PDF:', e);
+                    alert('Failed to load the resume. Try downloading instead.');
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
