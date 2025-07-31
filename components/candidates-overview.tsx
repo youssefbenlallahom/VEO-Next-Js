@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import {
   Users,
@@ -396,11 +395,8 @@ export function CandidatesOverview() {
 
           {/* Results summary */}
           <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-100">
-            <div className="flex items-center gap-4">
-              <Checkbox
-                checked={selectedCandidates.length === paginatedCandidates.length && paginatedCandidates.length > 0}
-                onCheckedChange={handleSelectAll}
-              />
+            <div className="text-sm text-gray-600">
+              Showing {paginatedCandidates.length} of {filteredStats.totalCandidates} candidates
             </div>
 
             {(searchTerm ||
@@ -445,11 +441,6 @@ export function CandidatesOverview() {
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <Checkbox
-                      checked={selectedCandidates.includes(candidate.id)}
-                      onCheckedChange={(checked) => handleCandidateSelect(candidate.id, checked as boolean)}
-                      className="mt-1 flex-shrink-0"
-                    />
                     <Avatar className="h-12 w-12 ring-2 ring-gray-100 flex-shrink-0">
                       <AvatarImage src={candidate.avatar || "/placeholder.svg"} alt={candidate.name} />
                       <AvatarFallback className="bg-veo-green/10 text-veo-green font-semibold">
@@ -471,11 +462,6 @@ export function CandidatesOverview() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0 ml-2">
-                    <Badge
-                      className={`${getScoreColor(candidate.aiScore)} font-bold text-sm px-2 py-1 border whitespace-nowrap`}
-                    >
-                      {candidate.aiScore}/10
-                    </Badge>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -508,21 +494,12 @@ export function CandidatesOverview() {
                       </div>
                       <span className="font-medium text-gray-900 text-sm truncate">{candidate.position}</span>
                     </div>
-                    <Badge
-                      className={`${getStatusColor(candidate.status)} border text-xs font-medium whitespace-nowrap`}
-                    >
-                      {candidate.status}
-                    </Badge>
                   </div>
 
                   <div className="grid grid-cols-1 gap-2 text-xs text-gray-600 mb-3">
                     <div className="flex items-center gap-1">
                       <MapPin className="h-3 w-3 flex-shrink-0" />
                       <span className="truncate">{candidate.location.split(",")[0]}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate">{candidate.appliedDate}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Phone className="h-3 w-3 flex-shrink-0" />
@@ -557,7 +534,7 @@ export function CandidatesOverview() {
                       className="flex-1 bg-veo-green hover:bg-veo-green/90 text-white shadow-sm hover:shadow-md transition-all"
                     >
                       <Brain className="h-3 w-3 mr-2" />
-                      AI Report
+                      View Score
                       {isExpanded ? <ChevronUp className="h-3 w-3 ml-2" /> : <ChevronDown className="h-3 w-3 ml-2" />}
                     </Button>
                     <Button variant="outline" size="sm" className="hover:bg-gray-50 bg-transparent">
@@ -565,96 +542,21 @@ export function CandidatesOverview() {
                     </Button>
                   </div>
 
-                  {/* Expanded AI Report Section */}
+                  {/* Expanded Score Section */}
                   {isExpanded && (
                     <div className="mt-4 pt-4 border-t border-gray-100 space-y-4 animate-slideDown">
-                      {/* Score Overview */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
-                          <div className="flex items-center justify-center mb-2">
-                            <Target className="h-4 w-4 text-blue-600" />
+                      {/* Job Applied and Score */}
+                      <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h4 className="text-sm font-bold text-blue-900 mb-1">Job Applied</h4>
+                            <p className="text-sm text-blue-800">{candidate.position}</p>
                           </div>
-                          <div className="text-xl font-bold text-blue-900">{aiReport.overallScore}/10</div>
-                          <div className="text-xs font-medium text-blue-700">Overall Score</div>
-                        </div>
-                        <div className="text-center p-3 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
-                          <div className="flex items-center justify-center mb-2">
-                            <Star className="h-4 w-4 text-purple-600" />
-                          </div>
-                          <div className="text-sm font-bold text-purple-900">{aiReport.recommendation}</div>
-                          <div className="text-xs font-medium text-purple-700">Recommendation</div>
-                        </div>
-                      </div>
-
-                      {/* Skills Analysis */}
-                      <div>
-                        <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                          <TrendingUp className="h-3 w-3 text-veo-green" />
-                          Skills Analysis
-                        </h4>
-                        <div className="space-y-2">
-                          {aiReport.skillsAnalysis.map((skill, index) => (
-                            <div key={skill.skill} className="p-2 bg-gray-50 rounded-lg">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs font-medium text-gray-900">{skill.skill}</span>
-                                <div className="flex items-center gap-1">
-                                  <span className="text-xs text-gray-600 bg-white px-1 py-0.5 rounded text-[10px]">
-                                    {skill.weight}%
-                                  </span>
-                                  <Badge className={`${getScoreColor(skill.score)} text-xs font-bold px-1 py-0.5`}>
-                                    {skill.score.toFixed(1)}/10
-                                  </Badge>
-                                </div>
-                              </div>
-                              <Progress value={skill.score * 10} className="h-1.5" />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Strengths and Concerns */}
-                      <div className="grid grid-cols-1 gap-3">
-                        <div>
-                          <h4 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3 text-green-600" />
-                            Strengths
-                          </h4>
-                          <div className="space-y-1">
-                            {aiReport.strengths.slice(0, 2).map((strength, index) => (
-                              <div key={index} className="flex items-start gap-1 p-2 bg-green-50 rounded text-xs">
-                                <CheckCircle className="h-3 w-3 text-green-600 mt-0.5 flex-shrink-0" />
-                                <span className="text-green-800">{strength}</span>
-                              </div>
-                            ))}
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-blue-900">{candidate.aiScore}/10</div>
+                            <div className="text-xs font-medium text-blue-700">Score</div>
                           </div>
                         </div>
-
-                        <div>
-                          <h4 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3 text-amber-600" />
-                            Concerns
-                          </h4>
-                          <div className="space-y-1">
-                            {aiReport.concerns.slice(0, 2).map((concern, index) => (
-                              <div key={index} className="flex items-start gap-1 p-2 bg-amber-50 rounded text-xs">
-                                <AlertCircle className="h-3 w-3 text-amber-600 mt-0.5 flex-shrink-0" />
-                                <span className="text-amber-800">{concern}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex gap-2 pt-2">
-                        <Button size="sm" variant="outline" className="flex-1 text-xs h-8 bg-transparent">
-                          <Download className="h-3 w-3 mr-1" />
-                          Export Report
-                        </Button>
-                        <Button size="sm" variant="outline" className="flex-1 text-xs h-8 bg-transparent">
-                          <FileText className="h-3 w-3 mr-1" />
-                          Full Analysis
-                        </Button>
                       </div>
                     </div>
                   )}
