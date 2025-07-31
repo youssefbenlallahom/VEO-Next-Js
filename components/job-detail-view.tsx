@@ -135,8 +135,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
           return a.name.localeCompare(b.name)
         case "appliedDate":
           return new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime()
-        case "experience":
-          return Number.parseInt(b.experience) - Number.parseInt(a.experience)
         default:
           return 0
       }
@@ -524,7 +522,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                       {
                         value: sortBy,
                         onChange: setSortBy,
-                        options: ["aiScore", "name", "appliedDate", "experience"],
+                        options: ["aiScore", "name", "appliedDate"],
                         placeholder: "Sort",
                         width: "w-32",
                       },
@@ -630,9 +628,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                             </Badge>
                           </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-gray-600 mb-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
                           <span className="font-medium">{applicant.email}</span>
-                          <span>{applicant.experience} experience</span>
                           <span>Applied {applicant.appliedDate}</span>
                         </div>
                         <div className="flex flex-wrap gap-1 mb-3">

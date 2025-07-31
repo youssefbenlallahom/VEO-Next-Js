@@ -108,29 +108,10 @@ export function CandidatesOverview() {
   const [sortBy, setSortBy] = useState("aiScore")
   const [expandedCandidate, setExpandedCandidate] = useState<number | null>(null)
 
-  // Show loading state
-  if (candidatesLoading || jobsLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
-  // Show error state
-  if (candidatesError) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">Error loading candidates: {candidatesError}</p>
-          <Button onClick={() => window.location.reload()}>Retry</Button>
-        </div>
-      </div>
-    )
-  }
-
-  // Filter and sort candidates
+  // Filter and sort candidates - moved before early returns
   const filteredAndSortedCandidates = useMemo(() => {
+    if (!candidates) return []
+    
     const filtered = candidates.filter((candidate) => {
       const matchesSearch =
         candidate.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -159,8 +140,6 @@ export function CandidatesOverview() {
           return a.name.localeCompare(b.name)
         case "appliedDate":
           return new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime()
-        case "experience":
-          return Number.parseInt(b.experience) - Number.parseInt(a.experience)
         case "position":
           return a.position.localeCompare(b.position)
         default:
@@ -169,16 +148,16 @@ export function CandidatesOverview() {
     })
 
     return filtered
-  }, [searchTerm, statusFilter, jobFilter, scoreFilter, countryFilter, sortBy])
+  }, [candidates, searchTerm, statusFilter, jobFilter, scoreFilter, countryFilter, sortBy])
 
-  // Pagination
+  // Pagination - moved before early returns
   const totalPages = Math.ceil(filteredAndSortedCandidates.length / CANDIDATES_PER_PAGE)
   const paginatedCandidates = filteredAndSortedCandidates.slice(
     (currentPage - 1) * CANDIDATES_PER_PAGE,
     currentPage * CANDIDATES_PER_PAGE,
   )
 
-  // Stats dynamiques basées sur les filtres appliqués
+  // Stats dynamiques basées sur les filtres appliqués - moved before early returns
   const filteredStats = useMemo(() => {
     return {
       totalCandidates: filteredAndSortedCandidates.length,
@@ -194,10 +173,31 @@ export function CandidatesOverview() {
     }
   }, [filteredAndSortedCandidates])
 
-  // Get unique values for filters
-  const statuses = [...new Set(candidates.map((c) => c.status))]
-  const positions = [...new Set(candidates.map((c) => c.position))]
-  const countries = [...new Set(candidates.map((c) => getCountryFromLocation(c.location)))].sort()
+  // Get unique values for filters - moved before early returns
+  const statuses = candidates ? [...new Set(candidates.map((c) => c.status))] : []
+  const positions = candidates ? [...new Set(candidates.map((c) => c.position))] : []
+  const countries = candidates ? [...new Set(candidates.map((c) => getCountryFromLocation(c.location)))].sort() : []
+
+  // Show loading state
+  if (candidatesLoading || jobsLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (candidatesError) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Error loading candidates: {candidatesError}</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      </div>
+    )
+  }
 
   const handleCandidateSelect = (candidateId: number, checked: boolean) => {
     if (checked) {
@@ -366,7 +366,7 @@ export function CandidatesOverview() {
                 {
                   value: sortBy,
                   onChange: setSortBy,
-                  options: ["aiScore", "name", "appliedDate", "experience", "position"],
+                  options: ["aiScore", "name", "appliedDate", "position"],
                   placeholder: "Sort",
                   width: "w-36",
                 },
@@ -527,10 +527,6 @@ export function CandidatesOverview() {
                     <div className="flex items-center gap-1">
                       <Phone className="h-3 w-3 flex-shrink-0" />
                       <span className="truncate">{candidate.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate">{candidate.experience}</span>
                     </div>
                   </div>
 
