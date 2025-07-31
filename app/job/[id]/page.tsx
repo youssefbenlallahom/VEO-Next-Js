@@ -10,13 +10,15 @@ interface JobPageProps {
 }
 
 export default async function JobPage({ params }: JobPageProps) {
+  const { id } = await params
+  
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
       <SidebarInset className="bg-gray-50 md:ml-[16rem]">
         <DashboardHeader />
         <main className="flex-1 p-6">
-          <JobDetailView jobId={params.id} />
+          <JobDetailView jobId={id} />
         </main>
       </SidebarInset>
     </SidebarProvider>

@@ -32,7 +32,7 @@ import {
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
-import { mockJobs } from "@/lib/mock-data"
+import { useJobWithCandidates } from "@/hooks/use-data"
 
 interface JobDetailViewProps {
   jobId: string
@@ -81,6 +81,7 @@ const savedBarems: Barem[] = [
 ]
 
 export function JobDetailView({ jobId }: JobDetailViewProps) {
+  const { job, candidates, loading } = useJobWithCandidates(jobId)
   const [selectedApplicants, setSelectedApplicants] = useState<number[]>([])
   const [showBaremModal, setShowBaremModal] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -98,18 +99,40 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [baremName, setBaremName] = useState("")
   const [baremDescription, setBaremDescription] = useState("")
   const [skillWeights, setSkillWeights] = useState<Record<string, number>>({})
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  // Show error state if job not found
+  if (!job) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">Job not found</p>
+          <Link href="/">
+            <Button>Back to Dashboard</Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   const [customSkills, setCustomSkills] = useState<string[]>([])
   const [newSkill, setNewSkill] = useState("")
   const [extractedSkills, setExtractedSkills] = useState<string[]>([])
   const [isExtracting, setIsExtracting] = useState(false)
 
-  const job = mockJobs.find((j) => j.id === jobId)
-
   // Filter and sort candidates
   const filteredAndSortedCandidates = useMemo(() => {
-    if (!job) return []
+    if (!candidates) return []
 
-    const filtered = job.applicants.filter((candidate) => {
+    const filtered = candidates.filter((candidate) => {
       const matchesSearch =
         candidate.name.toLowerCase().includes(candidateSearch.toLowerCase()) ||
         candidate.email.toLowerCase().includes(candidateSearch.toLowerCase()) ||
@@ -152,7 +175,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   )
 
   // Get unique statuses for filter
-  const candidateStatuses = job ? [...new Set(job.applicants.map((c) => c.status))] : []
+  const candidateStatuses = candidates ? [...new Set(candidates.map((c) => c.status))] : []
 
   const handleApplicantSelect = (applicantId: number, checked: boolean) => {
     if (checked) {
@@ -352,7 +375,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
             <div className="animate-slideRight">
               <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{job.title}</h1>
               <p className="text-lg text-gray-600">
-                {job.department} • {job.location} • {job.applicants.length} applicants
+                {job.department} • {job.location} • {candidates.length} applicants
               </p>
             </div>
           ) : (
@@ -407,7 +430,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">Applicants</p>
-                      <p className="font-medium text-gray-900">{job.applicants.length}</p>
+                      <p className="font-medium text-gray-900">{candidates.length}</p>
                     </div>
                   </div>
                 </div>
@@ -705,20 +728,22 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
               </CardHeader>
               <CardContent className="space-y-4">
                 {[
-                  { label: "Total Applicants", value: job.applicants.length },
+                  { label: "Total Applicants", value: candidates.length },
                   {
                     label: "Avg. AI Score",
-                    value: `${Math.round(job.applicants.reduce((sum, a) => sum + a.aiScore, 0) / job.applicants.length)}%`,
+                    value: candidates.length > 0 
+                      ? `${Math.round(candidates.reduce((sum, a) => sum + a.aiScore, 0) / candidates.length)}%`
+                      : "0%",
                   },
                   {
                     label: "New Applications",
-                    value: job.applicants.filter((a) => a.status === "New Application").length,
+                    value: candidates.filter((a) => a.status === "New").length,
                   },
                   {
                     label: "Interviews Scheduled",
-                    value: job.applicants.filter((a) => a.status === "Interview Scheduled").length,
+                    value: candidates.filter((a) => a.status === "Interview Scheduled").length,
                   },
-                  { label: "High Scores (90%+)", value: job.applicants.filter((a) => a.aiScore >= 90).length },
+                  { label: "High Scores (90%+)", value: candidates.filter((a) => a.aiScore >= 90).length },
                 ].map((stat, index) => (
                   <div
                     key={stat.label}

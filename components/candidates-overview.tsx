@@ -33,7 +33,17 @@ import {
   ChevronUp,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { allCandidates, getCountryFromLocation } from "@/lib/mock-data"
+import { useCandidates, useJobs } from "@/hooks/use-data"
+
+// Simple function to extract country from location
+const getCountryFromLocation = (location: string): string => {
+  // Simple mapping - in a real app, you might use a more sophisticated approach
+  if (location.toLowerCase().includes('tunisia') || location.toLowerCase().includes('tunis')) return 'Tunisia'
+  if (location.toLowerCase().includes('france')) return 'France'
+  if (location.toLowerCase().includes('usa') || location.toLowerCase().includes('america')) return 'USA'
+  if (location.toLowerCase().includes('canada')) return 'Canada'
+  return 'Other'
+}
 
 const CANDIDATES_PER_PAGE = 12
 
@@ -84,6 +94,9 @@ const generateAIReport = (candidate: any) => {
 }
 
 export function CandidatesOverview() {
+  const { candidates, loading: candidatesLoading, error: candidatesError } = useCandidates()
+  const { jobs, loading: jobsLoading } = useJobs()
+  
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [jobFilter, setJobFilter] = useState("all")
@@ -95,9 +108,30 @@ export function CandidatesOverview() {
   const [sortBy, setSortBy] = useState("aiScore")
   const [expandedCandidate, setExpandedCandidate] = useState<number | null>(null)
 
+  // Show loading state
+  if (candidatesLoading || jobsLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (candidatesError) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Error loading candidates: {candidatesError}</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      </div>
+    )
+  }
+
   // Filter and sort candidates
   const filteredAndSortedCandidates = useMemo(() => {
-    const filtered = allCandidates.filter((candidate) => {
+    const filtered = candidates.filter((candidate) => {
       const matchesSearch =
         candidate.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         candidate.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -161,9 +195,9 @@ export function CandidatesOverview() {
   }, [filteredAndSortedCandidates])
 
   // Get unique values for filters
-  const statuses = [...new Set(allCandidates.map((c) => c.status))]
-  const positions = [...new Set(allCandidates.map((c) => c.position))]
-  const countries = [...new Set(allCandidates.map((c) => getCountryFromLocation(c.location)))].sort()
+  const statuses = [...new Set(candidates.map((c) => c.status))]
+  const positions = [...new Set(candidates.map((c) => c.position))]
+  const countries = [...new Set(candidates.map((c) => getCountryFromLocation(c.location)))].sort()
 
   const handleCandidateSelect = (candidateId: number, checked: boolean) => {
     if (checked) {
@@ -343,7 +377,7 @@ export function CandidatesOverview() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All {filter.placeholder}</SelectItem>
-                    {filter.options.map((option) => (
+                    {filter.options.map((option: string) => (
                       <SelectItem key={option} value={option}>
                         {option === "high"
                           ? "9+"

@@ -28,11 +28,14 @@ import {
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
-import { mockJobs, getCountryFromLocation } from "@/lib/mock-data"
+import { useJobs, useCandidates } from "@/hooks/use-data"
 
 const ITEMS_PER_PAGE = 6
 
 export function JobsDashboard() {
+  const { jobs, loading: jobsLoading, error: jobsError } = useJobs()
+  const { candidates, loading: candidatesLoading } = useCandidates()
+  
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [departmentFilter, setDepartmentFilter] = useState("all")
@@ -44,7 +47,9 @@ export function JobsDashboard() {
 
   // Filter and sort jobs
   const filteredAndSortedJobs = useMemo(() => {
-    const filtered = mockJobs.filter((job) => {
+    if (!jobs || jobs.length === 0) return []
+    
+    const filtered = jobs.filter((job) => {
       const matchesSearch =
         job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         job.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -54,9 +59,8 @@ export function JobsDashboard() {
       const matchesDepartment = departmentFilter === "all" || job.department === departmentFilter
       const matchesPriority = priorityFilter === "all" || job.priority === priorityFilter
 
-      const matchesCountry =
-        countryFilter === "all" ||
-        job.applicants.some((candidate) => getCountryFromLocation(candidate.location) === countryFilter)
+      // For country filtering, we'll use location for now
+      const matchesCountry = countryFilter === "all" || job.location.includes(countryFilter)
 
       return matchesSearch && matchesStatus && matchesDepartment && matchesPriority && matchesCountry
     })
@@ -66,7 +70,7 @@ export function JobsDashboard() {
         case "postedDate":
           return new Date(b.postedDate).getTime() - new Date(a.postedDate).getTime()
         case "applicants":
-          return b.applicants.length - a.applicants.length
+          return b.applicants - a.applicants
         case "title":
           return a.title.localeCompare(b.title)
         case "priority":
@@ -78,7 +82,7 @@ export function JobsDashboard() {
     })
 
     return filtered
-  }, [searchTerm, statusFilter, departmentFilter, priorityFilter, countryFilter, sortBy])
+  }, [jobs, searchTerm, statusFilter, departmentFilter, priorityFilter, countryFilter, sortBy])
 
   // Pagination
   const totalPages = Math.ceil(filteredAndSortedJobs.length / ITEMS_PER_PAGE)
@@ -86,31 +90,46 @@ export function JobsDashboard() {
 
   // Stats dynamiques
   const filteredStats = useMemo(() => {
-    const filteredCandidates = filteredAndSortedJobs.flatMap((job) => job.applicants)
+    const totalApplicants = filteredAndSortedJobs.reduce((sum, job) => sum + job.applicants, 0)
+    const avgScore = candidates.length > 0
+      ? Math.round(candidates.reduce((sum, candidate) => sum + candidate.aiScore, 0) / candidates.length)
+      : 0
 
     return {
       totalJobs: filteredAndSortedJobs.length,
-      activeJobs: filteredAndSortedJobs.filter((job) => job.status === "Active").length,
-      totalApplicants: filteredCandidates.length,
-      avgScore:
-        filteredCandidates.length > 0
-          ? Math.round(
-              filteredCandidates.reduce((sum, candidate) => sum + candidate.aiScore, 0) / filteredCandidates.length,
-            )
-          : 0,
-      pendingReviews: filteredCandidates.filter((candidate) => candidate.status === "New Application").length,
+      activeJobs: filteredAndSortedJobs.filter((job) => job.status === "Open").length,
+      totalApplicants,
+      avgScore,
+      pendingReviews: candidates.filter((candidate) => candidate.status === "New").length,
     }
-  }, [filteredAndSortedJobs])
+  }, [filteredAndSortedJobs, candidates])
 
   // Get unique values for filters
-  const departments = [...new Set(mockJobs.map((job) => job.department))].filter((dept) => dept !== "Engineering")
-  const statuses = [...new Set(mockJobs.map((job) => job.status))]
-  const priorities = ["Medium", "Low"]
-  const countries = [
-    ...new Set(
-      mockJobs.flatMap((job) => job.applicants.map((candidate) => getCountryFromLocation(candidate.location))),
-    ),
-  ].sort()
+  const departments = [...new Set(jobs.map((job) => job.department))]
+  const statuses = [...new Set(jobs.map((job) => job.status))]
+  const priorities = ["High", "Medium", "Low"]
+  const countries = ["Tunisia", "France", "USA", "Canada"] // Add more as needed
+
+  // Show loading state
+  if (jobsLoading || candidatesLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (jobsError) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Error loading jobs: {jobsError}</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      </div>
+    )
+  }
 
   const handleJobSelect = (jobId: string, checked: boolean) => {
     if (checked) {
@@ -130,7 +149,7 @@ export function JobsDashboard() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Active":
+      case "Open":
         return "bg-emerald-50 text-emerald-700 border-emerald-200"
       case "Draft":
         return "bg-amber-50 text-amber-700 border-amber-200"
@@ -420,60 +439,26 @@ export function JobsDashboard() {
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                     <Users className="h-4 w-4 text-veo-green" />
-                    Applicants ({job.applicants.length})
+                    Applicants ({job.applicants})
                   </h4>
-                  {job.applicants.length > 0 && (
+                  {job.applicants > 0 && (
                     <div className="text-xs text-gray-600 font-medium">
-                      Avg:{" "}
-                      {Math.round(
-                        (job.applicants.reduce((sum, a) => sum + a.aiScore, 0) / job.applicants.length) * 10,
-                      ) / 10}
-                      /10
+                      {job.applicants} total
                     </div>
                   )}
                 </div>
 
-                {job.applicants.length > 0 ? (
+                {job.applicants > 0 ? (
                   <div className="space-y-2">
-                    {job.applicants.slice(0, 2).map((applicant, idx) => (
-                      <div
-                        key={applicant.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors animate-slideIn"
-                        style={{ animationDelay: `${idx * 0.1}s` }}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8 ring-2 ring-gray-100">
-                            <AvatarImage src={applicant.avatar || "/placeholder.svg"} alt={applicant.name} />
-                            <AvatarFallback className="text-xs bg-veo-green/10 text-veo-green">
-                              {applicant.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{applicant.name}</p>
-                            <p className="text-xs text-gray-500">{applicant.appliedDate}</p>
-                          </div>
-                        </div>
-                        <Badge
-                          className={
-                            applicant.aiScore >= 9
-                              ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-                              : applicant.aiScore >= 8
-                                ? "bg-blue-100 text-blue-800 border-blue-200"
-                                : "bg-amber-100 text-amber-800 border-amber-200"
-                          }
-                        >
-                          {applicant.aiScore}/10
-                        </Badge>
-                      </div>
-                    ))}
-                    {job.applicants.length > 2 && (
-                      <p className="text-xs text-gray-600 text-center py-2">
-                        +{job.applicants.length - 2} more applicants
-                      </p>
-                    )}
+                    <div className="text-center py-4 text-gray-500">
+                      <Users className="h-6 w-6 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">{job.applicants} candidates applied</p>
+                      <Link href={`/job/${job.id}`}>
+                        <Button variant="outline" size="sm" className="mt-2">
+                          View Details
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-6 text-gray-500">
