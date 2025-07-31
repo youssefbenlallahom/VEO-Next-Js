@@ -30,8 +30,10 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
+  Eye,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useCandidates, useJobs } from "@/hooks/use-data"
 
 // Simple function to extract country from location
@@ -107,6 +109,7 @@ export function CandidatesOverview() {
   const [sortBy, setSortBy] = useState("aiScore")
   const [expandedCandidate, setExpandedCandidate] = useState<number | null>(null)
   const [aiReportCandidate, setAiReportCandidate] = useState<number | null>(null)
+  const [viewingCV, setViewingCV] = useState<{candidateId: number, cvUrl: string} | null>(null)
 
   // Filter and sort candidates - moved before early returns
   const filteredAndSortedCandidates = useMemo(() => {
@@ -219,6 +222,23 @@ export function CandidatesOverview() {
 
   const toggleAiReport = (candidateId: number) => {
     setAiReportCandidate(aiReportCandidate === candidateId ? null : candidateId)
+  }
+
+  const getCVUrl = (candidate: any) => {
+    // Convert candidate name back to filename format
+    // This should reverse the process in the API: nameFromFile = filename.replace('-cv.pdf', '').split('-').map(...).join(' ')
+    const fileName = candidate.name
+      .toLowerCase()
+      .replace(/\s+/g, '-');
+    
+    // Use the API route to serve the CV
+    const url = `/api/cv/${encodeURIComponent(candidate.position)}/${fileName}-cv.pdf`;
+    return url;
+  }
+
+  const viewCV = (candidate: any) => {
+    const cvUrl = getCVUrl(candidate);
+    setViewingCV({ candidateId: candidate.id, cvUrl });
   }
 
   const getScoreColor = (score: number) => {
@@ -464,9 +484,9 @@ export function CandidatesOverview() {
                           <MessageSquare className="h-4 w-4 mr-2" />
                           Send Message
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Download className="h-4 w-4 mr-2" />
-                          Download Resume
+                        <DropdownMenuItem onClick={() => viewCV(candidate)}>
+                          <Eye className="h-4 w-4 mr-2 text-blue-600" />
+                          <span className="text-blue-600">View Resume</span>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -523,6 +543,16 @@ export function CandidatesOverview() {
                       <Brain className="h-3 w-3 mr-2" />
                       View Score
                       {isExpanded ? <ChevronUp className="h-3 w-3 ml-2" /> : <ChevronDown className="h-3 w-3 ml-2" />}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => viewCV(candidate)}
+                      className="px-3 hover:bg-blue-50 border-blue-200 text-blue-600"
+                      title="View Resume"
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      CV
                     </Button>
                     <Button
                       size="sm"
@@ -680,6 +710,66 @@ export function CandidatesOverview() {
           </CardContent>
         </Card>
       )}
+
+      {/* CV Viewer Modal */}
+        <Dialog open={!!viewingCV} onOpenChange={() => setViewingCV(null)}>
+    <DialogContent className="max-w-6xl h-[90vh] p-0 bg-white shadow-2xl">
+      {/* Header */}
+      <DialogHeader className="px-4 py-2 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+        <DialogTitle className="flex items-center justify-between text-sm">
+          <div className="flex items-center gap-2">
+            <div className="p-1 bg-blue-100 rounded-md">
+              <Eye className="h-4 w-4 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="text-base font-medium text-gray-900 leading-tight">
+                {viewingCV && 
+                  paginatedCandidates.find(c => c.id === viewingCV.candidateId)?.name
+                }
+              </h3>
+              <p className="text-xs text-gray-600">
+                {viewingCV && 
+                  paginatedCandidates.find(c => c.id === viewingCV.candidateId)?.position
+                }
+              </p>
+            </div>
+          </div>
+          <div className="mr-8">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (viewingCV) {
+                  window.open(viewingCV.cvUrl, '_blank');
+                }
+              }}
+              className="bg-white hover:bg-blue-50 border-blue-200 text-blue-600 shadow-sm px-3 py-1 h-auto text-xs"
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Download
+            </Button>
+          </div>
+        </DialogTitle>
+      </DialogHeader>
+
+      {/* CV Content */}
+      <div className="flex-1 bg-gray-50 p-2">
+        <div className="h-full bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+          {viewingCV && (
+            <iframe
+              src={viewingCV.cvUrl}
+              className="w-full h-[calc(90vh-70px)] border-0"
+              title="Resume PDF"
+              onError={(e) => {
+                console.error('Error loading PDF:', e);
+                alert('Failed to load the resume. Try downloading instead.');
+              }}
+            />
+          )}
+        </div>
+      </div>
+    </DialogContent>
+  </Dialog>
     </div>
   )
 }
