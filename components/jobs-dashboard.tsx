@@ -158,24 +158,13 @@ export function JobsDashboard() {
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Header */}
-      <div className="flex items-center justify-between animate-slideDown">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Job Openings</h1>
-          <p className="text-lg text-gray-600">
-            Manage <span className="font-semibold text-veo-green">{filteredStats.totalJobs}</span> job postings and{" "}
-            <span className="font-semibold text-veo-green">{filteredStats.totalApplicants}</span> applicants
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Button className="btn-primary shadow-md hover:shadow-lg">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Job
-          </Button>
-        </div>
-      </div>
+      <div className="flex flex-col items-center justify-center text-center space-y-2 animate-slideDown">
+  <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Job Openings</h1>
+  
+</div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 stagger-children">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 stagger-children">
         {[
           {
             title: "Total Jobs",
@@ -197,13 +186,6 @@ export function JobsDashboard() {
             subtitle: "AI quality",
             icon: TrendingUp,
             color: "purple",
-          },
-          {
-            title: "Pending",
-            value: filteredStats.pendingReviews,
-            subtitle: "Need review",
-            icon: Clock,
-            color: "amber",
           },
           { title: "Countries", value: countries.length, subtitle: "Global reach", icon: Globe, color: "indigo" },
         ].map((stat, index) => (
@@ -263,13 +245,6 @@ export function JobsDashboard() {
                   placeholder: "Country",
                   width: "w-36",
                 },
-                {
-                  value: sortBy,
-                  onChange: setSortBy,
-                  options: ["applicants", "title"],
-                  placeholder: "Sort",
-                  width: "w-36",
-                },
               ].map((filter, index) => (
                 <Select key={index} value={filter.value} onValueChange={filter.onChange}>
                   <SelectTrigger className={`${filter.width} h-12 border-gray-200 focus:border-veo-green hover-lift`}>
@@ -326,33 +301,14 @@ export function JobsDashboard() {
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 flex-1">
                   <div className="space-y-2 flex-1">
-                    <CardTitle className="text-xl text-gray-900 leading-tight hover:text-veo-green transition-colors">
-                      {job.title}
-                    </CardTitle>
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        <span>{job.location}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        <span>{job.postedDate}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className={`${getStatusColor(job.status)} border font-medium`}>{job.status}</Badge>
-                      <Badge className={`${getPriorityColor(job.priority)} border font-medium`}>{job.priority}</Badge>
-                      <Badge variant="outline" className="text-xs border-gray-200">
-                        {job.department}
-                      </Badge>
-                    </div>
+                    <CardTitle className="text-xl text-gray-900 leading-tight hover:text-veo-green transition-colors mb-2">
+  {job.title}
+</CardTitle>
+                    
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-gray-900">{job.salary}</div>
-                    <div className="text-xs text-gray-600">{job.type}</div>
-                  </div>
+                  
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm" className="hover-scale">
