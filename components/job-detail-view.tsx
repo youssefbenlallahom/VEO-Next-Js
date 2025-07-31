@@ -100,29 +100,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [baremDescription, setBaremDescription] = useState("")
   const [skillWeights, setSkillWeights] = useState<Record<string, number>>({})
 
-  // Show loading state
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
-  // Show error state if job not found
-  if (!job) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">Job not found</p>
-          <Link href="/">
-            <Button>Back to Dashboard</Button>
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
+  // Additional state hooks that were declared after early returns
   const [customSkills, setCustomSkills] = useState<string[]>([])
   const [newSkill, setNewSkill] = useState("")
   const [extractedSkills, setExtractedSkills] = useState<string[]>([])
@@ -165,7 +143,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     })
 
     return filtered
-  }, [job, candidateSearch, statusFilter, scoreFilter, sortBy])
+  }, [candidates, candidateSearch, statusFilter, scoreFilter, sortBy])
 
   // Pagination for candidates
   const totalPages = Math.ceil(filteredAndSortedCandidates.length / CANDIDATES_PER_PAGE)
@@ -176,6 +154,29 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
 
   // Get unique statuses for filter
   const candidateStatuses = candidates ? [...new Set(candidates.map((c) => c.status))] : []
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  // Show error state if job not found
+  if (!job) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">Job not found</p>
+          <Link href="/">
+            <Button>Back to Dashboard</Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   const handleApplicantSelect = (applicantId: number, checked: boolean) => {
     if (checked) {
