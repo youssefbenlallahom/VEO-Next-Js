@@ -30,6 +30,7 @@ import {
   Check,
   X,
   Info,
+  FileText,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
@@ -112,10 +113,9 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
 
   // Candidate filtering and pagination
   const [candidateSearch, setCandidateSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [scoreFilter, setScoreFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState("aiScore")
+  const [aiReportCandidate, setAiReportCandidate] = useState<number | null>(null)
 
   // Barem creation states
   const [baremName, setBaremName] = useState("")
@@ -138,14 +138,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
         candidate.email.toLowerCase().includes(candidateSearch.toLowerCase()) ||
         candidate.skills.some((skill) => skill.toLowerCase().includes(candidateSearch.toLowerCase()))
 
-      const matchesStatus = statusFilter === "all" || candidate.status === statusFilter
-
-      let matchesScore = true
-      if (scoreFilter === "high") matchesScore = candidate.aiScore >= 9
-      else if (scoreFilter === "medium") matchesScore = candidate.aiScore >= 7 && candidate.aiScore < 9
-      else if (scoreFilter === "low") matchesScore = candidate.aiScore < 7
-
-      return matchesSearch && matchesStatus && matchesScore
+      return matchesSearch
     })
 
     // Sort candidates
@@ -163,7 +156,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     })
 
     return filtered
-  }, [candidates, candidateSearch, statusFilter, scoreFilter, sortBy])
+  }, [candidates, candidateSearch, sortBy])
 
   // Pagination for candidates
   const totalPages = Math.ceil(filteredAndSortedCandidates.length / CANDIDATES_PER_PAGE)
@@ -171,9 +164,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     (currentPage - 1) * CANDIDATES_PER_PAGE,
     currentPage * CANDIDATES_PER_PAGE,
   )
-
-  // Get unique statuses for filter
-  const candidateStatuses = candidates ? [...new Set(candidates.map((c) => c.status))] : []
 
   // Show loading state
   if (loading) {
@@ -379,6 +369,56 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       default:
         return "bg-gray-50 text-gray-700 border-gray-200"
     }
+  }
+
+  // Deterministic random number generator based on seed
+  const seededRandom = (seed: number) => {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
+
+  // Generate AI Report Data
+  const generateAIReport = (candidate: any) => {
+    // Create a consistent seed based on candidate ID
+    const seed = candidate.id;
+    
+    return {
+      overallScore: candidate.aiScore,
+      skillsAnalysis: [
+        {
+          skill: "Technical Skills",
+          score: Math.min(10, candidate.aiScore + (seededRandom(seed * 1) * 2 - 1)),
+          weight: 35,
+        },
+        {
+          skill: "Communication",
+          score: Math.min(10, candidate.aiScore + (seededRandom(seed * 2) * 2 - 1)),
+          weight: 25,
+        },
+        {
+          skill: "Problem Solving",
+          score: Math.min(10, candidate.aiScore + (seededRandom(seed * 3) * 2 - 1)),
+          weight: 20,
+        },
+        {
+          skill: "Leadership",
+          score: Math.min(10, candidate.aiScore + (seededRandom(seed * 4) * 2 - 1)),
+          weight: 20,
+        },
+      ],
+      strengths: [
+        "Strong technical background with relevant experience",
+        "Excellent communication skills demonstrated in portfolio",
+        "Proven track record of successful project delivery",
+      ],
+      concerns: ["Limited experience with specific technology stack", "Gap in recent work history needs clarification"],
+      recommendation:
+        candidate.aiScore >= 8.5 ? "Highly Recommended" : candidate.aiScore >= 7 ? "Recommended" : "Consider with Caution",
+    };
+  }
+
+  const toggleAiReport = (candidateId: number) => {
+    setAiReportCandidate(aiReportCandidate === candidateId ? null : candidateId)
   }
 
   return (
@@ -601,20 +641,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                   <div className="flex gap-3">
                     {[
                       {
-                        value: statusFilter,
-                        onChange: setStatusFilter,
-                        options: candidateStatuses,
-                        placeholder: "Status",
-                        width: "w-40",
-                      },
-                      {
-                        value: scoreFilter,
-                        onChange: setScoreFilter,
-                        options: ["high", "medium", "low"],
-                        placeholder: "Score",
-                        width: "w-32",
-                      },
-                      {
                         value: sortBy,
                         onChange: setSortBy,
                         options: ["aiScore", "name", "appliedDate"],
@@ -744,11 +770,125 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                             <MessageSquare className="h-3 w-3 mr-1" />
                             Contact
                           </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => toggleAiReport(applicant.id)}
+                            className="btn-secondary bg-transparent"
+                            title="View AI Report"
+                          >
+                            <FileText className="h-3 w-3 mr-1" />
+                            AI Report
+                          </Button>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
+
+                {/* AI Report Section */}
+                {aiReportCandidate && (
+                  <div className="mt-6 p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200 animate-slideDown">
+                    {(() => {
+                      const candidate = paginatedApplicants.find(c => c.id === aiReportCandidate);
+                      if (!candidate) return null;
+                      const aiReport = generateAIReport(candidate);
+                      
+                      return (
+                        <div>
+                          <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 bg-purple-600 rounded-full flex items-center justify-center">
+                                <FileText className="h-5 w-5 text-white" />
+                              </div>
+                              <div>
+                                <h3 className="text-lg font-bold text-purple-900">AI Analysis Report</h3>
+                                <p className="text-sm text-purple-700">{candidate.name}</p>
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-3xl font-bold text-purple-900">{aiReport.overallScore}/10</div>
+                              <div className="text-xs font-medium text-purple-700">Overall Score</div>
+                            </div>
+                          </div>
+                          
+                          {/* Skills Analysis */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div>
+                              <h4 className="text-sm font-semibold text-purple-800 uppercase tracking-wide mb-4">Skills Breakdown</h4>
+                              <div className="space-y-4">
+                                {aiReport.skillsAnalysis.map((skill, idx) => (
+                                  <div key={idx} className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm text-purple-700 font-medium">{skill.skill}</span>
+                                      <span className="text-sm font-semibold text-purple-900">{skill.score.toFixed(1)}</span>
+                                    </div>
+                                    <div className="w-full bg-purple-200 rounded-full h-2">
+                                      <div 
+                                        className="bg-purple-600 h-2 rounded-full transition-all duration-300" 
+                                        style={{ width: `${(skill.score / 10) * 100}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <h4 className="text-sm font-semibold text-purple-800 uppercase tracking-wide mb-4">Recommendation</h4>
+                              <div className="p-4 bg-white/50 rounded-lg border border-purple-200">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <div className={`h-3 w-3 rounded-full ${
+                                    aiReport.recommendation === "Highly Recommended" ? "bg-green-500" :
+                                    aiReport.recommendation === "Recommended" ? "bg-yellow-500" : "bg-red-500"
+                                  }`}></div>
+                                  <span className="text-sm font-semibold text-purple-900">{aiReport.recommendation}</span>
+                                </div>
+                                
+                                <div className="space-y-3">
+                                  <div>
+                                    <h5 className="text-xs font-semibold text-purple-800 mb-1">Strengths</h5>
+                                    <ul className="text-xs text-purple-700 space-y-1">
+                                      {aiReport.strengths.map((strength, idx) => (
+                                        <li key={idx} className="flex items-start gap-1">
+                                          <span className="text-green-600 mt-0.5">•</span>
+                                          {strength}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                  
+                                  <div>
+                                    <h5 className="text-xs font-semibold text-purple-800 mb-1">Areas of Concern</h5>
+                                    <ul className="text-xs text-purple-700 space-y-1">
+                                      {aiReport.concerns.map((concern, idx) => (
+                                        <li key={idx} className="flex items-start gap-1">
+                                          <span className="text-amber-600 mt-0.5">•</span>
+                                          {concern}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex justify-end pt-4 border-t border-purple-200">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => setAiReportCandidate(null)}
+                              className="text-purple-700 border-purple-300 hover:bg-purple-50"
+                            >
+                              Close Report
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
 
                 {/* Pagination */}
                 {totalPages > 1 && (
@@ -790,8 +930,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                       variant="outline"
                       onClick={() => {
                         setCandidateSearch("")
-                        setStatusFilter("all")
-                        setScoreFilter("all")
                         setCurrentPage(1)
                       }}
                       className="btn-secondary"
@@ -828,10 +966,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                     label: "New Applications",
                     value: candidates.filter((a) => a.status === "New").length,
                   },
-                  {
-                    label: "Interviews Scheduled",
-                    value: candidates.filter((a) => a.status === "Interview Scheduled").length,
-                  },
                   { label: "High Scores (90%+)", value: candidates.filter((a) => a.aiScore >= 90).length },
                 ].map((stat, index) => (
                   <div
@@ -857,7 +991,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                 {[
                   { icon: Download, label: "Export All Applicants" },
                   { icon: Settings, label: "Edit Job Posting" },
-                  { icon: MessageSquare, label: "Message All Candidates" },
                 ].map((action, index) => (
                   <Button
                     key={action.label}

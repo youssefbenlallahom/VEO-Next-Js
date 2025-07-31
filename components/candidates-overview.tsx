@@ -106,6 +106,7 @@ export function CandidatesOverview() {
   const [selectedCandidates, setSelectedCandidates] = useState<number[]>([])
   const [sortBy, setSortBy] = useState("aiScore")
   const [expandedCandidate, setExpandedCandidate] = useState<number | null>(null)
+  const [aiReportCandidate, setAiReportCandidate] = useState<number | null>(null)
 
   // Filter and sort candidates - moved before early returns
   const filteredAndSortedCandidates = useMemo(() => {
@@ -214,6 +215,10 @@ export function CandidatesOverview() {
 
   const toggleCandidateExpansion = (candidateId: number) => {
     setExpandedCandidate(expandedCandidate === candidateId ? null : candidateId)
+  }
+
+  const toggleAiReport = (candidateId: number) => {
+    setAiReportCandidate(aiReportCandidate === candidateId ? null : candidateId)
   }
 
   const getScoreColor = (score: number) => {
@@ -410,12 +415,13 @@ export function CandidatesOverview() {
         {paginatedCandidates.map((candidate, index) => {
           const aiReport = generateAIReport(candidate)
           const isExpanded = expandedCandidate === candidate.id
+          const isAiReportExpanded = aiReportCandidate === candidate.id
 
           return (
             <Card
               key={candidate.id}
               className={`group hover:shadow-xl transition-all duration-300 border-0 shadow-md hover:-translate-y-1 animate-slideUp ${
-                isExpanded ? "ring-2 ring-veo-green/30" : ""
+                isExpanded || isAiReportExpanded ? "ring-2 ring-veo-green/30" : ""
               }`}
               style={{ animationDelay: `${index * 0.05}s` }}
             >
@@ -518,7 +524,15 @@ export function CandidatesOverview() {
                       View Score
                       {isExpanded ? <ChevronUp className="h-3 w-3 ml-2" /> : <ChevronDown className="h-3 w-3 ml-2" />}
                     </Button>
-                    
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => toggleAiReport(candidate.id)}
+                      className="px-3 hover:bg-gray-50 border-gray-200"
+                      title="View AI Report"
+                    >
+                      <FileText className="h-3 w-3" />
+                    </Button>
                   </div>
 
                   {/* Expanded Score Section */}
@@ -533,6 +547,48 @@ export function CandidatesOverview() {
                           <div className="text-center">
                             <div className="text-2xl font-bold text-blue-900">{candidate.aiScore}/10</div>
                             <div className="text-xs font-medium text-blue-700">Score</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AI Report Section */}
+                  {isAiReportExpanded && (
+                    <div className="mt-4 pt-4 border-t border-gray-100 space-y-4 animate-slideDown">
+                      <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-bold text-purple-900">AI Analysis Report</h4>
+                          <div className="text-xl font-bold text-purple-900">{aiReport.overallScore}/10</div>
+                        </div>
+                        
+                        {/* Skills Analysis */}
+                        <div className="space-y-3 mb-4">
+                          <h5 className="text-xs font-semibold text-purple-800 uppercase tracking-wide">Skills Breakdown</h5>
+                          {aiReport.skillsAnalysis.map((skill, idx) => (
+                            <div key={idx} className="flex items-center justify-between">
+                              <span className="text-xs text-purple-700 font-medium">{skill.skill}</span>
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 bg-purple-200 rounded-full h-1.5">
+                                  <div 
+                                    className="bg-purple-600 h-1.5 rounded-full" 
+                                    style={{ width: `${(skill.score / 10) * 100}%` }}
+                                  ></div>
+                                </div>
+                                <span className="text-xs font-semibold text-purple-900 w-8">{skill.score.toFixed(1)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Recommendation */}
+                        <div className="pt-3 border-t border-purple-200">
+                          <div className="flex items-center gap-2">
+                            <div className={`h-2 w-2 rounded-full ${
+                              aiReport.recommendation === "Highly Recommended" ? "bg-green-500" :
+                              aiReport.recommendation === "Recommended" ? "bg-yellow-500" : "bg-red-500"
+                            }`}></div>
+                            <span className="text-xs font-semibold text-purple-900">{aiReport.recommendation}</span>
                           </div>
                         </div>
                       </div>
