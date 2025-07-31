@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Briefcase,
   Users,
@@ -42,7 +41,6 @@ export function JobsDashboard() {
   const [priorityFilter, setPriorityFilter] = useState("all")
   const [countryFilter, setCountryFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
-  const [selectedJobs, setSelectedJobs] = useState<string[]>([])
   const [sortBy, setSortBy] = useState("postedDate")
 
   // Filter and sort jobs
@@ -131,22 +129,6 @@ export function JobsDashboard() {
     )
   }
 
-  const handleJobSelect = (jobId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedJobs([...selectedJobs, jobId])
-    } else {
-      setSelectedJobs(selectedJobs.filter((id) => id !== jobId))
-    }
-  }
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedJobs(paginatedJobs.map((job) => job.id))
-    } else {
-      setSelectedJobs([])
-    }
-  }
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Open":
@@ -185,30 +167,6 @@ export function JobsDashboard() {
           </p>
         </div>
         <div className="flex gap-3">
-          {selectedJobs.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="shadow-sm hover:shadow-md transition-all bg-transparent">
-                  <Users className="h-4 w-4 mr-2" />
-                  Actions ({selectedJobs.length})
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="animate-scaleIn">
-                <DropdownMenuItem>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Selected
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Archive className="h-4 w-4 mr-2" />
-                  Archive Selected
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Bulk Edit
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
           <Button className="btn-primary shadow-md hover:shadow-lg">
             <Plus className="h-4 w-4 mr-2" />
             Create Job
@@ -332,11 +290,8 @@ export function JobsDashboard() {
 
           {/* Results summary */}
           <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-100">
-            <div className="flex items-center gap-4">
-              <Checkbox
-                checked={selectedJobs.length === paginatedJobs.length && paginatedJobs.length > 0}
-                onCheckedChange={handleSelectAll}
-              />
+            <div className="text-sm text-gray-600">
+              Showing {paginatedJobs.length} of {filteredAndSortedJobs.length} jobs
             </div>
 
             {(searchTerm || statusFilter !== "all" || departmentFilter !== "all" || countryFilter !== "all") && (
@@ -370,11 +325,6 @@ export function JobsDashboard() {
             <CardHeader className="pb-4">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 flex-1">
-                  <Checkbox
-                    checked={selectedJobs.includes(job.id)}
-                    onCheckedChange={(checked) => handleJobSelect(job.id, checked as boolean)}
-                    className="mt-1"
-                  />
                   <div className="space-y-2 flex-1">
                     <CardTitle className="text-xl text-gray-900 leading-tight hover:text-veo-green transition-colors">
                       {job.title}
@@ -430,10 +380,6 @@ export function JobsDashboard() {
             <CardContent className="space-y-4">
               <p className="text-sm text-gray-600 line-clamp-2">{job.description}</p>
 
-              <div className="text-sm text-gray-600">
-                <span className="font-medium">Manager:</span> {job.hiringManager}
-              </div>
-
               {/* Applicants Preview */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -453,11 +399,6 @@ export function JobsDashboard() {
                     <div className="text-center py-4 text-gray-500">
                       <Users className="h-6 w-6 mx-auto mb-2 text-gray-300" />
                       <p className="text-sm">{job.applicants} candidates applied</p>
-                      <Link href={`/job/${job.id}`}>
-                        <Button variant="outline" size="sm" className="mt-2">
-                          View Details
-                        </Button>
-                      </Link>
                     </div>
                   </div>
                 ) : (
