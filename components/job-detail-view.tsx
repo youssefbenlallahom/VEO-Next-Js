@@ -428,24 +428,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                     </div>
                   </div>
                   <div className="flex items-center gap-3 animate-slideIn" style={{ animationDelay: "0.2s" }}>
-                    <div className="p-2 bg-green-100 rounded-lg">
-                      <Calendar className="h-4 w-4 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Posted</p>
-                      <p className="font-medium text-gray-900">{job.postedDate}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 animate-slideIn" style={{ animationDelay: "0.3s" }}>
-                    <div className="p-2 bg-purple-100 rounded-lg">
-                      <DollarSign className="h-4 w-4 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Salary</p>
-                      <p className="font-medium text-gray-900">{job.salary}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 animate-slideIn" style={{ animationDelay: "0.4s" }}>
                     <div className="p-2 bg-amber-100 rounded-lg">
                       <Users className="h-4 w-4 text-amber-600" />
                     </div>
@@ -505,7 +487,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                           if (
                             (trimmedLine.length < 50 && 
                              (trimmedLine.toUpperCase() === trimmedLine || 
-                              /^(responsibilities|requirements|qualifications|skills|benefits|about|overview|description|duties|experience|education|what you.ll do|what we offer|job summary|role overview|key requirements|preferred qualifications)/i.test(trimmedLine))) ||
+                              /^(responsibilities|qualifications|skills|benefits|about|overview|description|duties|experience|education|what you.ll do|what we offer|job summary|role overview|key requirements|preferred qualifications)/i.test(trimmedLine))) ||
                             (trimmedLine.endsWith(':') && trimmedLine.length < 50)
                           ) {
                             // Save previous section if it has items
@@ -536,7 +518,9 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                           });
                         }
                         
-                        return sections;
+                        return sections.filter(section => 
+                          !section.title.toLowerCase().includes('requirement')
+                        );
                       })().map((section, secIdx) => (
                         <div key={secIdx} className="border-l-4 border-veo-green pl-6">
                           <h5 className="text-lg font-semibold text-gray-900 mb-4">{section.title}</h5>
@@ -734,14 +718,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                             <Badge className={`${getScoreColor(applicant.aiScore)} border font-bold`}>
                               {applicant.aiScore}/10
                             </Badge>
-                            <Badge className={`${getStatusColor(applicant.status)} border font-medium`}>
-                              {applicant.status}
-                            </Badge>
                           </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
+                        <div className="grid grid-cols-1 gap-2 text-sm text-gray-600 mb-3">
                           <span className="font-medium">{applicant.email}</span>
-                          <span>Applied {applicant.appliedDate}</span>
                         </div>
                         <div className="flex flex-wrap gap-1 mb-3">
                           {applicant.skills.slice(0, 4).map((skill, index) => (
