@@ -302,13 +302,21 @@ export function JobsDashboard() {
                 <div className="flex items-start gap-3 flex-1">
                   <div className="space-y-2 flex-1">
                     <CardTitle className="text-xl text-gray-900 leading-tight hover:text-veo-green transition-colors mb-2">
-  {job.title}
-</CardTitle>
-                    
+                      {job.title}
+                    </CardTitle>
+                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="h-4 w-4" />
+                        <span>{job.location}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="h-4 w-4" />
+                        <span>{new Date(job.postedDate).toLocaleDateString('en-CA')}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm" className="hover-scale">
@@ -317,52 +325,67 @@ export function JobsDashboard() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="animate-scaleIn">
                       <DropdownMenuItem>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit Job
+                        <Edit className="mr-2 h-4 w-4" />
+                        <span>Edit</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem>
-                        <Download className="h-4 w-4 mr-2" />
-                        Export Applicants
+                        <Archive className="mr-2 h-4 w-4" />
+                        <span>Archive</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem>
-                        <Archive className="h-4 w-4 mr-2" />
-                        Archive Job
+                        <Download className="mr-2 h-4 w-4" />
+                        <span>Export Applicants</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-gray-600 line-clamp-2">{job.description}</p>
-
-              {/* Applicants Preview */}
+            <CardContent className="p-4 pt-0">
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                    <Users className="h-4 w-4 text-veo-green" />
-                    Applicants ({job.applicants})
-                  </h4>
-                  {job.applicants > 0 && (
-                    <div className="text-xs text-gray-600 font-medium">
-                      {job.applicants} total
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <Badge className={`${getStatusColor(job.status)} border`}>{job.status}</Badge>
+                  <Badge className={`${getPriorityColor(job.priority)} border`}>{job.priority}</Badge>
+                  <Badge variant="secondary" className="border bg-gray-100 text-gray-700">{job.department}</Badge>
+                </div>
+
+                <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">
+                  {job.description}
+                </p>
+
+                <div className="border-t border-gray-100 pt-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2 text-veo-green font-medium">
+                      <Users className="h-4 w-4" />
+                      <span>Applicants ({job.applicants})</span>
+                    </div>
+                    <span className="text-gray-500">{job.applicants} total</span>
+                  </div>
+
+                  {job.applicants > 0 ? (
+                    <div className="flex -space-x-2 overflow-hidden mt-3">
+                      {candidates
+                        .filter(c => c.jobId === job.id)
+                        .slice(0, 5)
+                        .map(a => (
+                          <Avatar key={a.id} className="inline-block h-8 w-8 rounded-full ring-2 ring-white">
+                            <AvatarImage src={a.avatar} alt={a.name} />
+                            <AvatarFallback>{a.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                        ))}
+                      {job.applicants > 5 && (
+                        <Avatar className="inline-block h-8 w-8 rounded-full ring-2 ring-white">
+                          <AvatarFallback>+{job.applicants - 5}</AvatarFallback>
+                        </Avatar>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-gray-500">
+                      <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">No applicants yet</p>
                     </div>
                   )}
                 </div>
-
-                {job.applicants > 0 ? (
-                  <div className="space-y-2">
-                    <div className="text-center py-4 text-gray-500">
-                      <Users className="h-6 w-6 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">{job.applicants} candidates applied</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-6 text-gray-500">
-                    <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                    <p className="text-sm">No applicants yet</p>
-                  </div>
-                )}
               </div>
 
               <div className="pt-2">

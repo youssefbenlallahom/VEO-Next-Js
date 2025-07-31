@@ -29,9 +29,31 @@ import {
   TrendingUp,
   Check,
   X,
+  Info,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
+
+// TypeScript type for normalized job description
+export interface JobDescriptionJSON {
+  sections: Array<{
+    title?: string;
+    categories: Array<{
+      title?: string;
+      items: string[];
+    }>;
+  }>;
+}
+
+// Type guard for normalized job description
+export function isNormalizedDescription(desc: unknown): desc is JobDescriptionJSON {
+  return (
+    typeof desc === 'object' &&
+    desc !== null &&
+    'sections' in desc &&
+    Array.isArray((desc as any).sections)
+  );
+}
 import { useJobWithCandidates } from "@/hooks/use-data"
 
 interface JobDetailViewProps {
@@ -434,10 +456,148 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                   </div>
                 </div>
 
-                <div className="animate-slideUp" style={{ animationDelay: "0.5s" }}>
-                  <h4 className="font-semibold text-gray-900 mb-3">Description</h4>
-                  <p className="text-gray-600 leading-relaxed">{job.description}</p>
+                <div className="animate-slideUp" style={{ animationDelay: '0.5s' }}>
+  <h4 className="font-semibold text-gray-900 mb-6 text-xl">Job Description</h4>
+  {isNormalizedDescription(job.description) ? (
+    <div className="space-y-10">
+      {(job.description as JobDescriptionJSON).sections
+        .filter(section => section.title?.trim().toLowerCase() !== 'requirements')
+        .map((section, secIdx) => (
+          <div key={secIdx} className="relative">
+            {section.title && (
+              <div className="flex items-center gap-4 mb-8">
+                <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-veo-green to-emerald-600 rounded-xl shadow-lg">
+                  <span className="text-white font-bold text-lg">{secIdx + 1}</span>
                 </div>
+                <div>
+                  <h5 className="text-2xl font-bold text-gray-900 tracking-tight">{section.title}</h5>
+                  <div className="w-16 h-1 bg-gradient-to-r from-veo-green to-emerald-600 rounded-full mt-2"></div>
+                </div>
+              </div>
+            )}
+            <div className="grid gap-6 pl-14">
+              {section.categories?.map((category, catIdx) => (
+                <div key={catIdx} className="group relative">
+                  {category.title && (
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-2 h-2 bg-gradient-to-r from-veo-green to-emerald-600 rounded-full"></div>
+                      <h6 className="font-bold text-gray-800 text-lg group-hover:text-veo-green transition-colors duration-200">
+                        {category.title}
+                      </h6>
+                    </div>
+                  )}
+                  <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:border-veo-green/30">
+                    <div className="space-y-4">
+                      {category.items.map((item, itemIdx) => (
+                        <div
+                          key={itemIdx}
+                          className="flex items-start gap-4 animate-slideIn group/item"
+                          style={{ animationDelay: `${0.5 + (secIdx + catIdx + itemIdx) * 0.05}s` }}
+                        >
+                          <div className="flex-shrink-0 mt-2">
+                            <div className="w-3 h-3 bg-gradient-to-br from-veo-green to-emerald-600 rounded-full shadow-sm group-hover/item:scale-110 transition-transform duration-200"></div>
+                          </div>
+                          <p className="text-gray-700 leading-relaxed text-base group-hover/item:text-gray-900 transition-colors duration-200">
+                            {item}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+    </div>
+  ) : (
+    <div className="space-y-8">
+      {/* Auto-detect and create sections from plain text */}
+      {(() => {
+        interface Section {
+          title: string;
+          items: string[];
+        }
+        const lines = job.description.split('\n').filter(line => line.trim() !== '');
+        const sections: Section[] = [];
+        let currentSection: Section = { title: 'Overview', items: [] };
+        
+        lines.forEach((line, idx) => {
+          const trimmedLine = line.trim();
+          
+          // Check if line looks like a section header (all caps, contains keywords, etc.)
+          if (
+            (trimmedLine.length < 50 && 
+             (trimmedLine.toUpperCase() === trimmedLine || 
+              /^(responsibilities|requirements|qualifications|skills|benefits|about|overview|description|duties|experience|education|what you.ll do|what we offer|job summary|role overview|key requirements|preferred qualifications)/i.test(trimmedLine))) ||
+            (trimmedLine.endsWith(':') && trimmedLine.length < 50)
+          ) {
+            // Save previous section if it has items
+            if (currentSection.items.length > 0) {
+              sections.push(currentSection);
+            }
+            // Start new section
+            currentSection = { 
+              title: trimmedLine.replace(':', ''), 
+              items: [] 
+            };
+          } else if (trimmedLine.length > 0) {
+            // Add to current section
+            currentSection.items.push(trimmedLine.replace(/^[-•*]\s*/, ''));
+          }
+        });
+        
+        // Add the last section
+        if (currentSection.items.length > 0) {
+          sections.push(currentSection);
+        }
+        
+        // If no sections were detected, create a single section
+        if (sections.length === 0) {
+          sections.push({
+            title: 'Job Description',
+            items: lines.map(line => line.replace(/^[-•*]\s*/, ''))
+          });
+        }
+        
+        return sections;
+      })().map((section, secIdx) => (
+        <div key={secIdx} className="relative">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-veo-green to-emerald-600 rounded-xl shadow-lg">
+              <span className="text-white font-bold text-lg">{secIdx + 1}</span>
+            </div>
+            <div>
+              <h5 className="text-2xl font-bold text-gray-900 tracking-tight">{section.title}</h5>
+              <div className="w-16 h-1 bg-gradient-to-r from-veo-green to-emerald-600 rounded-full mt-2"></div>
+            </div>
+          </div>
+          
+          <div className="pl-14">
+            <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:border-veo-green/30">
+              <div className="space-y-4">
+                {section.items.map((item, itemIdx) => (
+                  <div
+                    key={itemIdx}
+                    className="flex items-start gap-4 animate-slideIn group/item"
+                    style={{ animationDelay: `${0.5 + (secIdx + itemIdx) * 0.05}s` }}
+                  >
+                    <div className="flex-shrink-0 mt-2">
+                      <div className="w-3 h-3 bg-gradient-to-br from-veo-green to-emerald-600 rounded-full shadow-sm group-hover/item:scale-110 transition-transform duration-200"></div>
+                    </div>
+                    <p className="text-gray-700 leading-relaxed text-base group-hover/item:text-gray-900 transition-colors duration-200">
+                      {item}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
 
                 <div className="animate-slideUp" style={{ animationDelay: "0.6s" }}>
                   <h4 className="font-semibold text-gray-900 mb-3">Requirements</h4>

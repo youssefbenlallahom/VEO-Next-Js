@@ -97,7 +97,7 @@ export function CandidatesOverview() {
   const { jobs, loading: jobsLoading } = useJobs()
   
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
+
   const [jobFilter, setJobFilter] = useState("all")
   const [scoreFilter, setScoreFilter] = useState("all")
   const [locationFilter, setLocationFilter] = useState("all")
@@ -118,7 +118,7 @@ export function CandidatesOverview() {
         candidate.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
         candidate.skills.some((skill) => skill.toLowerCase().includes(searchTerm.toLowerCase()))
 
-      const matchesStatus = statusFilter === "all" || candidate.status === statusFilter
+
       const matchesJob = jobFilter === "all" || candidate.position === jobFilter
       const matchesCountry = countryFilter === "all" || getCountryFromLocation(candidate.location) === countryFilter
 
@@ -127,7 +127,7 @@ export function CandidatesOverview() {
       else if (scoreFilter === "medium") matchesScore = candidate.aiScore >= 7 && candidate.aiScore < 9
       else if (scoreFilter === "low") matchesScore = candidate.aiScore < 7
 
-      return matchesSearch && matchesStatus && matchesJob && matchesScore && matchesCountry
+      return matchesSearch && matchesJob && matchesScore && matchesCountry
     })
 
     // Sort candidates
@@ -147,7 +147,7 @@ export function CandidatesOverview() {
     })
 
     return filtered
-  }, [candidates, searchTerm, statusFilter, jobFilter, scoreFilter, countryFilter, sortBy])
+  }, [candidates, searchTerm, jobFilter, scoreFilter, countryFilter, sortBy])
 
   // Pagination - moved before early returns
   const totalPages = Math.ceil(filteredAndSortedCandidates.length / CANDIDATES_PER_PAGE)
@@ -166,14 +166,12 @@ export function CandidatesOverview() {
               filteredAndSortedCandidates.reduce((sum, c) => sum + c.aiScore, 0) / filteredAndSortedCandidates.length,
             )
           : 0,
-      newApplications: filteredAndSortedCandidates.filter((c) => c.status === "New Application").length,
-      interviewsScheduled: filteredAndSortedCandidates.filter((c) => c.status === "Interview Scheduled").length,
       uniqueCountries: [...new Set(filteredAndSortedCandidates.map((c) => getCountryFromLocation(c.location)))].length,
     }
   }, [filteredAndSortedCandidates])
 
   // Get unique values for filters - moved before early returns
-  const statuses = candidates ? [...new Set(candidates.map((c) => c.status))] : []
+
   const positions = candidates ? [...new Set(candidates.map((c) => c.position))] : []
   const countries = candidates ? [...new Set(candidates.map((c) => getCountryFromLocation(c.location)))].sort() : []
 
@@ -285,14 +283,12 @@ export function CandidatesOverview() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { title: "Total Candidates", value: filteredStats.totalCandidates, icon: Users, color: "blue" },
-          { title: "Avg. AI Score", value: `${filteredStats.avgScore}%`, icon: TrendingUp, color: "green" },
-          { title: "New Applications", value: filteredStats.newApplications, icon: Clock, color: "amber" },
-          { title: "Interviews", value: filteredStats.interviewsScheduled, icon: Calendar, color: "purple" },
-          { title: "Countries", value: filteredStats.uniqueCountries, icon: Globe, color: "indigo" },
-        ].map((stat, index) => (
+  { title: "Total Candidates", value: filteredStats.totalCandidates, icon: Users, color: "blue" },
+  { title: "Avg. AI Score", value: `${filteredStats.avgScore}%`, icon: TrendingUp, color: "green" },
+  { title: "Countries", value: filteredStats.uniqueCountries, icon: Globe, color: "indigo" },
+].map((stat, index) => (
           <Card
             key={stat.title}
             className="hover:shadow-lg transition-all duration-300 animate-slideUp"
@@ -331,13 +327,7 @@ export function CandidatesOverview() {
 
             <div className="flex gap-3 flex-wrap">
               {[
-                {
-                  value: statusFilter,
-                  onChange: setStatusFilter,
-                  options: statuses,
-                  placeholder: "Status",
-                  width: "w-40",
-                },
+                
                 {
                   value: jobFilter,
                   onChange: setJobFilter,
@@ -352,13 +342,7 @@ export function CandidatesOverview() {
                   placeholder: "Country",
                   width: "w-40",
                 },
-                {
-                  value: scoreFilter,
-                  onChange: setScoreFilter,
-                  options: ["high", "medium", "low"],
-                  placeholder: "Score",
-                  width: "w-32",
-                },
+                
                 {
                   value: sortBy,
                   onChange: setSortBy,
@@ -397,7 +381,7 @@ export function CandidatesOverview() {
             </div>
 
             {(searchTerm ||
-              statusFilter !== "all" ||
+
               jobFilter !== "all" ||
               scoreFilter !== "all" ||
               countryFilter !== "all") && (
@@ -406,7 +390,7 @@ export function CandidatesOverview() {
                 size="sm"
                 onClick={() => {
                   setSearchTerm("")
-                  setStatusFilter("all")
+
                   setJobFilter("all")
                   setScoreFilter("all")
                   setCountryFilter("all")
@@ -534,15 +518,12 @@ export function CandidatesOverview() {
                       View Score
                       {isExpanded ? <ChevronUp className="h-3 w-3 ml-2" /> : <ChevronDown className="h-3 w-3 ml-2" />}
                     </Button>
-                    <Button variant="outline" size="sm" className="hover:bg-gray-50 bg-transparent">
-                      <MessageSquare className="h-3 w-3" />
-                    </Button>
+                    
                   </div>
 
                   {/* Expanded Score Section */}
                   {isExpanded && (
                     <div className="mt-4 pt-4 border-t border-gray-100 space-y-4 animate-slideDown">
-                      {/* Job Applied and Score */}
                       <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
@@ -631,7 +612,6 @@ export function CandidatesOverview() {
               variant="outline"
               onClick={() => {
                 setSearchTerm("")
-                setStatusFilter("all")
                 setJobFilter("all")
                 setScoreFilter("all")
                 setCountryFilter("all")
