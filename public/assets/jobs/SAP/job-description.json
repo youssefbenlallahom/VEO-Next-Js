@@ -1,0 +1,92 @@
+{
+  "sections": [
+    {
+      "title": "Position Overview",
+      "categories": [
+        {
+          "title": null,
+          "items": [
+            "SAP ABAP Developer",
+            "Department: IT & Development",
+            "Location: Hybrid/On-site",
+            "Experience Level: Mid-Level (2+ years)",
+            "We are seeking an experienced SAP ABAP Developer to join our IT development team. The successful candidate will work closely with functional teams to develop, maintain, and optimize SAP applications while ensuring high-quality technical solutions."
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Key Responsibilities",
+      "categories": [
+        {
+          "title": null,
+          "items": [
+            "Work closely with functional teams to understand business needs",
+            "Evaluate the technical feasibility of requests and estimate workload",
+            "Develop using best ABAP programming practices, including creating programs, reports, function modules, forms, and interfaces",
+            "Create custom SAP applications to meet specific client requirements",
+            "Optimize the performance of ABAP applications by writing efficient code, managing SQL queries, data indexing, and minimizing SAP system load",
+            "Adapt standard SAP modules by modifying parameters, screens, and workflows to align with evolving business needs",
+            "Perform unit tests to verify functionality and reliability of the developed code",
+            "Collaborate with functional teams during integration and user acceptance tests",
+            "Create detailed technical documentation and properly comment code",
+            "Work with IT teams to develop interfaces between SAP and other systems (ETL, BI, CRM, etc.)",
+            "Ensure data consistency and information flow between applications",
+            "Quickly resolve complex technical issues reported by support teams, including debugging and error resolution"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Required Skills",
+      "categories": [
+        {
+          "title": null,
+          "items": [
+            "Engineering degree in Computer Science or equivalent",
+            "Proficient in ABAP and SQL",
+            "At least 2 years in a similar role",
+            "Programming experience within the SAP application",
+            "Professional English: reading, writing, and speaking",
+            "Ability to collect and translate user requirements",
+            "Ability to work according to a specification"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Key Competencies",
+      "categories": [
+        {
+          "title": null,
+          "items": [
+            "Planning and organization / Meeting deadlines",
+            "Time management / Ability to prioritize",
+            "Communication, listening, and interpersonal skills",
+            "Understanding user needs",
+            "Commitment to continuous improvement of internal processes",
+            "Analytical and research skills",
+            "Problem-solving and synthesis skills",
+            "Results-oriented / Persistence in achieving results",
+            "Teamwork and positive attitude"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Benefits",
+      "categories": [
+        {
+          "title": null,
+          "items": [
+            "Competitive salary range: $65,000 - $85,000",
+            "Professional development opportunities",
+            "Technical training and certifications",
+            "Health and dental coverage",
+            "Flexible working arrangements"
+          ]
+        }
+      ]
+    }
+  ]
+}

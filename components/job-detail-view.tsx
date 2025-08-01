@@ -143,15 +143,15 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [viewingCV, setViewingCV] = useState<{candidateId: number, cvUrl: string} | null>(null)
 
   // Barem creation states
-  const [baremName, setBaremName] = useState("")
-  const [baremDescription, setBaremDescription] = useState("")
-  const [skillWeights, setSkillWeights] = useState<Record<string, number>>({})
-
-  // Additional state hooks that were declared after early returns
-  const [customSkills, setCustomSkills] = useState<string[]>([])
-  const [newSkill, setNewSkill] = useState("")
-  const [extractedSkills, setExtractedSkills] = useState<string[]>([])
-  const [isExtracting, setIsExtracting] = useState(false)
+  const [baremName, setBaremName] = useState("");
+  const [baremDescription, setBaremDescription] = useState("");
+  // Weights for categories (except Languages)
+  const [categoryWeights, setCategoryWeights] = useState<Record<string, number>>({});
+  // Weights for individual languages
+  const [languageWeights, setLanguageWeights] = useState<Record<string, number>>({});
+  // Store categorized skills from API
+  const [categorizedSkills, setCategorizedSkills] = useState<Record<string, string[]>>({});
+  const [isExtracting, setIsExtracting] = useState(false);
 
   // Filter and sort candidates
   const filteredAndSortedCandidates = useMemo(() => {
@@ -229,129 +229,109 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     }
   }
 
+  // AI-powered skill extraction and barem creation (category-based)
   const extractSkillsFromJob = async () => {
-    setIsExtracting(true)
-    setExtractedSkills([])
+    if (!job) return;
+    setIsExtracting(true);
+    setCategoryWeights({});
+    setLanguageWeights({});
+    setCategorizedSkills({});
 
-    // Simulation d'analyse IA avec progression
-    const steps = [
-      "Analyzing job title...",
-      "Processing job description...",
-      "Identifying key skills...",
-      "Calculating skill importance...",
-      "Generating skill weights...",
-    ]
+    try {
+      // 1. Extract skills from job description
+      const extractRes = await fetch('/api/extract-skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_title: job.title,
+          job_description: job.description,
+        }),
+      });
+      const extractData = await extractRes.json();
 
-    for (let i = 0; i < steps.length; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 800))
+      // 2. Prepare initial weights
+      const cats = extractData.categorized_skills || {};
+      setCategorizedSkills(cats);
+      // Exclude Languages from categories
+      const categoryNames = Object.keys(cats).filter((cat) => cat !== 'Languages');
+      const languageSkills = cats['Languages'] || [];
+      // Distribute 100%: 80% for categories, 20% for languages (modifiable)
+      const defaultCatWeight = categoryNames.length > 0 ? Math.floor(80 / categoryNames.length) : 0;
+      const defaultLangWeight = languageSkills.length > 0 ? Math.floor(20 / languageSkills.length) : 0;
+      const catRemainder = 80 - defaultCatWeight * categoryNames.length;
+      const langRemainder = 20 - defaultLangWeight * languageSkills.length;
+      const initialCatWeights: Record<string, number> = {};
+      const initialLangWeights: Record<string, number> = {};
+      categoryNames.forEach((cat, idx) => {
+        initialCatWeights[cat] = defaultCatWeight + (idx < catRemainder ? 1 : 0);
+      });
+      languageSkills.forEach((lang, idx) => {
+        initialLangWeights[lang] = defaultLangWeight + (idx < langRemainder ? 1 : 0);
+      });
+      setCategoryWeights(initialCatWeights);
+      setLanguageWeights(initialLangWeights);
+
+      // 3. Create barem (send weights as per new logic)
+      const skills_weights: Record<string, number> = {};
+      // For each category, assign the category weight to all its skills (except Languages)
+      categoryNames.forEach((cat) => {
+        (cats[cat] || []).forEach((skill: string) => {
+          skills_weights[skill] = initialCatWeights[cat];
+        });
+      });
+      // For each language, assign its own weight
+      languageSkills.forEach((lang: string) => {
+        skills_weights[lang] = initialLangWeights[lang];
+      });
+
+      const baremRes = await fetch('/api/barem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          skills_weights,
+          categorized_skills: cats,
+        }),
+      });
+      const baremData = await baremRes.json();
+
+      setCurrentBarem(baremData.barem);
+    } catch (err) {
+      setCategoryWeights({});
+      setLanguageWeights({});
+      setCategorizedSkills({});
+      setCurrentBarem(null);
+    } finally {
+      setIsExtracting(false);
     }
+  };
 
-    // Génération basée sur le job réel
-    const jobBasedSkills =
-      job?.title.toLowerCase().includes("software") ||
-      job?.title.toLowerCase().includes("developer") ||
-      job?.title.toLowerCase().includes("engineer")
-        ? [
-            "JavaScript/TypeScript",
-            "React",
-            "Node.js",
-            "AWS/Cloud",
-            "Full-stack Development",
-            "Git/Version Control",
-            "API Development",
-            "Database Design",
-          ]
-        : job?.title.toLowerCase().includes("product")
-          ? [
-              "Product Strategy",
-              "User Research",
-              "Analytics",
-              "Agile/Scrum",
-              "Roadmapping",
-              "Stakeholder Management",
-              "Market Analysis",
-              "A/B Testing",
-            ]
-          : job?.title.toLowerCase().includes("designer") || job?.title.toLowerCase().includes("ux")
-            ? [
-                "Figma/Sketch",
-                "User Research",
-                "Prototyping",
-                "Design Systems",
-                "Usability Testing",
-                "Visual Design",
-                "Information Architecture",
-                "Interaction Design",
-              ]
-            : job?.title.toLowerCase().includes("data")
-              ? [
-                  "Python/R",
-                  "Machine Learning",
-                  "SQL",
-                  "Statistics",
-                  "Data Visualization",
-                  "TensorFlow/PyTorch",
-                  "Big Data",
-                  "Statistical Analysis",
-                ]
-              : job?.title.toLowerCase().includes("marketing")
-                ? [
-                    "Digital Marketing",
-                    "SEO/SEM",
-                    "Content Strategy",
-                    "Analytics",
-                    "Social Media",
-                    "Campaign Management",
-                    "Brand Management",
-                    "Marketing Automation",
-                  ]
-                : [
-                    "Communication",
-                    "Problem Solving",
-                    "Leadership",
-                    "Project Management",
-                    "Analytical Thinking",
-                    "Teamwork",
-                  ]
-
-    setExtractedSkills(jobBasedSkills)
-
-    // Auto-distribution intelligente des poids
-    const totalSkills = jobBasedSkills.length
-    const baseWeight = Math.floor(100 / totalSkills)
-    const remainder = 100 - baseWeight * totalSkills
-
-    const initialWeights: Record<string, number> = {}
-    jobBasedSkills.forEach((skill, index) => {
-      initialWeights[skill] = baseWeight + (index < remainder ? 1 : 0)
-    })
-
-    setSkillWeights(initialWeights)
-    setIsExtracting(false)
-  }
-
-  const updateSkillWeight = (skill: string, weight: number) => {
-    setSkillWeights({ ...skillWeights, [skill]: weight })
-  }
-
+  // Update category weight
+  const updateCategoryWeight = (cat: string, weight: number) => {
+    setCategoryWeights((prev) => ({ ...prev, [cat]: weight }));
+  };
+  // Update language weight
+  const updateLanguageWeight = (lang: string, weight: number) => {
+    setLanguageWeights((prev) => ({ ...prev, [lang]: weight }));
+  };
+  // Auto-distribute: 80% for categories, 20% for languages
   const autoDistributeWeights = () => {
-    const allSkills = [...extractedSkills, ...customSkills]
-    if (allSkills.length === 0) return
-
-    const equalWeight = Math.floor(100 / allSkills.length)
-    const newWeights: Record<string, number> = {}
-
-    allSkills.forEach((skill) => {
-      newWeights[skill] = equalWeight
-    })
-
-    const total = Object.values(newWeights).reduce((sum, weight) => sum + weight, 0)
-    if (total !== 100 && allSkills.length > 0) {
-      newWeights[allSkills[0]] += 100 - total
-    }
-
-    setSkillWeights(newWeights)
-  }
+    const cats = Object.keys(categorizedSkills).filter((cat) => cat !== 'Languages');
+    const langs = categorizedSkills['Languages'] || [];
+    const defaultCatWeight = cats.length > 0 ? Math.floor(80 / cats.length) : 0;
+    const defaultLangWeight = langs.length > 0 ? Math.floor(20 / langs.length) : 0;
+    const catRemainder = 80 - defaultCatWeight * cats.length;
+    const langRemainder = 20 - defaultLangWeight * langs.length;
+    const newCatWeights: Record<string, number> = {};
+    const newLangWeights: Record<string, number> = {};
+    cats.forEach((cat, idx) => {
+      newCatWeights[cat] = defaultCatWeight + (idx < catRemainder ? 1 : 0);
+    });
+    langs.forEach((lang, idx) => {
+      newLangWeights[lang] = defaultLangWeight + (idx < langRemainder ? 1 : 0);
+    });
+    setCategoryWeights(newCatWeights);
+    setLanguageWeights(newLangWeights);
+  };
 
   const startAnalysis = async () => {
     setIsAnalyzing(true)
@@ -366,9 +346,13 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     setShowBaremModal(false)
   }
 
+  // Total = sum of all category weights + all language weights
   const getTotalWeight = () => {
-    return Object.values(skillWeights).reduce((sum, weight) => sum + weight, 0)
-  }
+    return (
+      Object.values(categoryWeights).reduce((sum, w) => sum + w, 0) +
+      Object.values(languageWeights).reduce((sum, w) => sum + w, 0)
+    );
+  };
 
   const getScoreColor = (score: number) => {
     if (score >= 9) return "bg-emerald-100 text-emerald-800 border-emerald-200"
@@ -1075,7 +1059,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       {showBaremModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div className="fixed inset-4 flex items-center justify-center">
-            <div className="w-full max-w-5xl max-h-full flex flex-col animate-scaleIn">
+            <div className="w-full max-w-5xl h-full max-h-[90vh] flex flex-col animate-scaleIn">
               <Card className="bg-white shadow-2xl border-0 h-full flex flex-col">
                 {/* Header - Fixed */}
                 <CardHeader className="bg-gradient-to-r from-veo-green to-emerald-600 text-white p-4 flex-shrink-0">
@@ -1103,8 +1087,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                 </CardHeader>
 
                 {/* Content - Scrollable */}
-                <div className="flex-1 overflow-y-auto min-h-0">
-                  <CardContent className="p-6">
+                <div className="flex-1 min-h-0">
+                  <CardContent className="p-6 h-full overflow-y-auto">
                     {isAnalyzing ? (
                       <div className="flex items-center justify-center h-full min-h-[400px]">
                         <div className="text-center">
@@ -1132,7 +1116,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                           </div>
                         </div>
                       </div>
-                    ) : extractedSkills.length === 0 ? (
+                    ) : Object.keys(categorizedSkills).length === 0 ? (
                       <div className="flex items-center justify-center h-full min-h-[400px]">
                         <div className="text-center max-w-2xl">
                           <div className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-veo-green/10 to-emerald-500/10 rounded-full mb-4">
@@ -1174,10 +1158,9 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                             </div>
                             <span className="text-sm font-medium text-green-700">AI Generation Complete!</span>
                           </div>
-                          <h3 className="text-lg font-bold text-gray-900 mb-1">Review & Adjust Skill Weights</h3>
+                          <h3 className="text-lg font-bold text-gray-900 mb-1">Review & Adjust Weights</h3>
                           <p className="text-gray-600 text-sm">
-                            AI identified {extractedSkills.length} key skills for "{job?.title}". Adjust the weights to
-                            match your priorities.
+                            Ajustez les poids par catégorie et pour chaque langue pour "{job?.title}".
                           </p>
                         </div>
 
@@ -1188,7 +1171,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                             </div>
                             <div>
                               <h4 className="font-semibold text-gray-900 text-sm">Total Weight</h4>
-                              <p className="text-xs text-gray-600">Must equal 100%</p>
+                              <p className="text-xs text-gray-600">Doit être égal à 100%</p>
                             </div>
                           </div>
                           <div className="text-right">
@@ -1199,7 +1182,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                             </div>
                             {getTotalWeight() !== 100 && (
                               <p className="text-xs text-red-500">
-                                {getTotalWeight() > 100 ? "Reduce by" : "Add"} {Math.abs(100 - getTotalWeight())}%
+                                {getTotalWeight() > 100 ? "Réduire de" : "Ajouter"} {Math.abs(100 - getTotalWeight())}%
                               </p>
                             )}
                           </div>
@@ -1217,8 +1200,9 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                           </Button>
                           <Button
                             onClick={() => {
-                              setExtractedSkills([])
-                              setSkillWeights({})
+                              setCategoryWeights({});
+                              setLanguageWeights({});
+                              setCategorizedSkills({});
                             }}
                             variant="outline"
                             size="sm"
@@ -1229,32 +1213,59 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                           </Button>
                         </div>
 
+                        {/* Category weights sliders */}
                         <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
-                          {extractedSkills.map((skill, index) => (
-                            <div
-                              key={skill}
-                              className="p-3 border border-gray-200 rounded-lg hover:shadow-sm transition-all"
-                            >
+                          {Object.keys(categorizedSkills).filter((cat) => cat !== 'Languages').map((cat) => (
+                            <div key={cat} className="p-3 border border-gray-200 rounded-lg hover:shadow-sm transition-all">
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                   <div className="p-1 bg-gradient-to-br from-veo-green/10 to-emerald-500/10 rounded">
                                     <Brain className="h-3 w-3 text-veo-green" />
                                   </div>
-                                  <span className="font-medium text-gray-900 text-sm">{skill}</span>
+                                  <span className="font-medium text-gray-900 text-sm">{cat}</span>
                                 </div>
                                 <div className="text-right">
-                                  <div className="text-sm font-bold text-veo-green">{skillWeights[skill] || 0}%</div>
+                                  <div className="text-sm font-bold text-veo-green">{categoryWeights[cat] || 0}%</div>
                                 </div>
                               </div>
                               <Slider
-                                value={[skillWeights[skill] || 0]}
-                                onValueChange={(value) => updateSkillWeight(skill, value[0])}
+                                value={[categoryWeights[cat] || 0]}
+                                onValueChange={(value) => updateCategoryWeight(cat, value[0])}
                                 max={100}
                                 step={1}
                                 className="w-full"
                               />
+                              {/* Show skills in this category */}
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {categorizedSkills[cat].map((skill: string) => (
+                                  <span key={skill} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                                    {skill}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                           ))}
+                          {/* Language weights sliders */}
+                          {categorizedSkills['Languages'] && (
+                            <div className="p-3 border border-gray-200 rounded-lg hover:shadow-sm transition-all">
+                              <div className="font-medium text-gray-900 text-sm mb-2">Languages</div>
+                              {categorizedSkills['Languages'].map((lang: string) => (
+                                <div key={lang} className="mb-2">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-sm text-gray-800">{lang}</span>
+                                    <span className="text-sm font-bold text-veo-green">{languageWeights[lang] || 0}%</span>
+                                  </div>
+                                  <Slider
+                                    value={[languageWeights[lang] || 0]}
+                                    onValueChange={(value) => updateLanguageWeight(lang, value[0])}
+                                    max={100}
+                                    step={1}
+                                    className="w-full"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1262,14 +1273,93 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                 </div>
 
                 {/* Footer - Fixed */}
-                {!isAnalyzing && extractedSkills.length > 0 && (
+                {!isAnalyzing && Object.keys(categorizedSkills).length > 0 && (
                   <div className="border-t bg-gray-50 p-4 flex-shrink-0">
                     <div className="flex gap-3">
                       <Button onClick={() => setShowBaremModal(false)} variant="outline" className="flex-1 h-10">
                         Cancel
                       </Button>
                       <Button
-                        onClick={startAnalysis}
+                        onClick={async () => {
+                          // 1. Compose skills_weights for API: each skill in a category gets the category weight, each language gets its own
+                          const skills_weights: Record<string, number> = {};
+                          Object.keys(categorizedSkills).forEach((cat) => {
+                            if (cat === 'Languages') {
+                              (categorizedSkills[cat] || []).forEach((lang: string) => {
+                                skills_weights[lang] = languageWeights[lang] || 0;
+                              });
+                            } else {
+                              (categorizedSkills[cat] || []).forEach((skill: string) => {
+                                skills_weights[skill] = categoryWeights[cat] || 0;
+                              });
+                            }
+                          });
+                          setIsAnalyzing(true);
+                          setAnalysisProgress(0);
+                          try {
+                            // 2. Create barem
+                            const baremRes = await fetch('/api/barem', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                skills_weights,
+                                categorized_skills: categorizedSkills,
+                              }),
+                            });
+                            const baremData = await baremRes.json();
+                            setCurrentBarem(baremData.barem);
+
+                            // 3. Gather all selected CVs as blobs and send in one FormData
+                            // IMPORTANT: Make sure your CV files are in public/assets/jobs/<Job Title>/<filename>.pdf
+                            const formData = new FormData();
+                            // Add job info
+                            formData.append('job_title', job.title);
+                            formData.append('job_description', job.description);
+                            formData.append('barem', JSON.stringify(baremData.barem));
+                            // Fetch and append all files
+                            let fileCount = 0;
+                            for (let i = 0; i < selectedApplicants.length; i++) {
+                              const candidateId = selectedApplicants[i];
+                              const candidate = candidates.find((c: any) => c.id === candidateId);
+                              if (!candidate) continue;
+                              // Get the CV URL (should be a static asset path)
+                              const cvUrl = getCVUrl(candidate).replace('/api/cv/', '/assets/jobs/');
+                              // Try to fetch the file as blob
+                              try {
+                                const response = await fetch(cvUrl);
+                                if (!response.ok) {
+                                  console.warn('CV file not found:', cvUrl);
+                                  continue;
+                                }
+                                const blob = await response.blob();
+                                // Use candidate name or id for filename
+                                const filename = candidate.name.replace(/\s+/g, '_').toLowerCase() + '.pdf';
+                                formData.append('files', blob, filename);
+                                fileCount++;
+                              } catch (e) {
+                                console.error('Error fetching CV file:', cvUrl, e);
+                              }
+                              setAnalysisProgress(Math.round(((i + 1) / selectedApplicants.length) * 80));
+                            }
+                            if (fileCount === 0) {
+                              alert('No CV files found. Make sure your CVs are in public/assets/jobs/<Job Title>/<filename>.pdf');
+                              setIsAnalyzing(false);
+                              return;
+                            }
+                            // Only send if at least one file
+                            console.log('Sending analysis request to /api/analyze with', fileCount, 'files');
+                            await fetch('/api/analyze', {
+                              method: 'POST',
+                              body: formData,
+                            });
+                            setAnalysisProgress(100);
+                          } catch (err) {
+                            console.error('Error during AI analysis:', err);
+                          } finally {
+                            setIsAnalyzing(false);
+                            setShowBaremModal(false);
+                          }
+                        }}
                         className="flex-1 h-10 bg-gradient-to-r from-veo-green to-emerald-600 hover:from-veo-green/90 hover:to-emerald-600/90 text-white"
                         disabled={getTotalWeight() !== 100}
                       >
