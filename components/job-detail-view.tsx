@@ -231,6 +231,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
 
   // AI-powered skill extraction and barem creation (category-based)
   const extractSkillsFromJob = async () => {
+    console.log('🎯 EXTRACT SKILLS BUTTON CLICKED!');
     if (!job) return;
     setIsExtracting(true);
     setCategoryWeights({});
@@ -238,6 +239,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     setCategorizedSkills({});
 
     try {
+      console.log('📡 Calling /api/extract-skills...');
+      console.log('Job title:', job.title);
+      console.log('Job description length:', job.description.length);
+      
       // 1. Extract skills from job description
       const extractRes = await fetch('/api/extract-skills', {
         method: 'POST',
@@ -247,14 +252,31 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
           job_description: job.description,
         }),
       });
+      
+      console.log('Extract skills response status:', extractRes.status);
+      console.log('Extract skills response ok:', extractRes.ok);
+      
+      if (!extractRes.ok) {
+        console.error('Extract skills API failed:', extractRes.status, extractRes.statusText);
+        const errorText = await extractRes.text();
+        console.error('Error response body:', errorText);
+        return;
+      }
+      
       const extractData = await extractRes.json();
+      console.log('📊 Skills extraction result:');
+      console.log('Extract data:', JSON.stringify(extractData, null, 2));
 
       // 2. Prepare initial weights
       const cats = extractData.categorized_skills || {};
+      console.log('📋 Categorized skills received:', cats);
       setCategorizedSkills(cats);
       // Exclude Languages from categories
       const categoryNames = Object.keys(cats).filter((cat) => cat !== 'Languages');
       const languageSkills = cats['Languages'] || [];
+      console.log('📂 Category names:', categoryNames);
+      console.log('🗣️ Language skills:', languageSkills);
+      
       // Distribute 100%: 80% for categories, 20% for languages (modifiable)
       const defaultCatWeight = categoryNames.length > 0 ? Math.floor(80 / categoryNames.length) : 0;
       const defaultLangWeight = languageSkills.length > 0 ? Math.floor(20 / languageSkills.length) : 0;
@@ -268,21 +290,25 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       languageSkills.forEach((lang, idx) => {
         initialLangWeights[lang] = defaultLangWeight + (idx < langRemainder ? 1 : 0);
       });
+      
+      console.log('⚖️ Initial category weights:', initialCatWeights);
+      console.log('🗣️ Initial language weights:', initialLangWeights);
+      
       setCategoryWeights(initialCatWeights);
       setLanguageWeights(initialLangWeights);
 
       // 3. Create barem (send weights as per new logic)
       const skills_weights: Record<string, number> = {};
-      // For each category, assign the category weight to all its skills (except Languages)
+      // For categories, use category names as keys (not individual skills)
       categoryNames.forEach((cat) => {
-        (cats[cat] || []).forEach((skill: string) => {
-          skills_weights[skill] = initialCatWeights[cat];
-        });
+        skills_weights[cat] = initialCatWeights[cat];
       });
-      // For each language, assign its own weight
+      // For languages, use individual language names as keys (they're not in categories)
       languageSkills.forEach((lang: string) => {
         skills_weights[lang] = initialLangWeights[lang];
       });
+
+      console.log('🏗️ Creating barem with skills weights:', skills_weights);
 
       const baremRes = await fetch('/api/barem', {
         method: 'POST',
@@ -292,10 +318,26 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
           categorized_skills: cats,
         }),
       });
+      
+      console.log('Barem creation response status:', baremRes.status);
+      console.log('Barem creation response ok:', baremRes.ok);
+      
+      if (!baremRes.ok) {
+        console.error('Barem creation API failed:', baremRes.status, baremRes.statusText);
+        const errorText = await baremRes.text();
+        console.error('Error response body:', errorText);
+        return;
+      }
+      
       const baremData = await baremRes.json();
+      console.log('🎯 BAREM CREATION SUCCESS!');
+      console.log('=== BAREM JSON FROM EXTRACTION ===');
+      console.log('Barem JSON:', JSON.stringify(baremData, null, 2));
+      console.log('=== END BAREM JSON FROM EXTRACTION ===');
 
       setCurrentBarem(baremData.barem);
     } catch (err) {
+      console.error('❌ ERROR in extractSkillsFromJob:', err);
       setCategoryWeights({});
       setLanguageWeights({});
       setCategorizedSkills({});
@@ -1281,33 +1323,24 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                       </Button>
                       <Button
                         onClick={async () => {
-                          // 1. Compose skills_weights for API: each skill in a category gets the category weight, each language gets its own
-                          const skills_weights: Record<string, number> = {};
-                          Object.keys(categorizedSkills).forEach((cat) => {
-                            if (cat === 'Languages') {
-                              (categorizedSkills[cat] || []).forEach((lang: string) => {
-                                skills_weights[lang] = languageWeights[lang] || 0;
-                              });
-                            } else {
-                              (categorizedSkills[cat] || []).forEach((skill: string) => {
-                                skills_weights[skill] = categoryWeights[cat] || 0;
-                              });
-                            }
-                          });
+                          console.log('🚀 START AI ANALYSIS BUTTON CLICKED!');
+                          console.log('🔍 Testing if console works at all');
+                          console.log('📋 Current barem:', currentBarem);
+                          
+                          // Check if we have a barem already created
+                          if (!currentBarem) {
+                            console.error('❌ No barem available! You must generate assessment criteria first.');
+                            alert('No assessment criteria found. Please generate assessment criteria first.');
+                            return;
+                          }
+                          
                           setIsAnalyzing(true);
                           setAnalysisProgress(0);
                           try {
-                            // 2. Create barem
-                            const baremRes = await fetch('/api/barem', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                skills_weights,
-                                categorized_skills: categorizedSkills,
-                              }),
-                            });
-                            const baremData = await baremRes.json();
-                            setCurrentBarem(baremData.barem);
+                            console.log('✅ Using existing barem for analysis');
+                            console.log('=== USING BAREM FOR ANALYSIS ===');
+                            console.log('Barem JSON:', JSON.stringify(currentBarem, null, 2));
+                            console.log('=== END BAREM FOR ANALYSIS ===');
 
                             // 3. Gather all selected CVs as blobs and send in one FormData
                             // IMPORTANT: Make sure your CV files are in public/assets/jobs/<Job Title>/<filename>.pdf
@@ -1315,7 +1348,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                             // Add job info
                             formData.append('job_title', job.title);
                             formData.append('job_description', job.description);
-                            formData.append('barem', JSON.stringify(baremData.barem));
+                            formData.append('barem', JSON.stringify(currentBarem));
                             // Fetch and append all files
                             let fileCount = 0;
                             for (let i = 0; i < selectedApplicants.length; i++) {
@@ -1347,11 +1380,36 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                               return;
                             }
                             // Only send if at least one file
+                            console.log('📤 PREPARING TO SEND ANALYSIS REQUEST:');
+                            console.log('- Job title:', job.title);
+                            console.log('- Job description length:', job.description.length);
+                            console.log('- Barem keys count:', Object.keys(currentBarem).length);
+                            console.log('- Files count:', fileCount);
+                            console.log('- FormData contents:');
+                            console.log('  ✅ job_title: SET');
+                            console.log('  ✅ job_description: SET');
+                            console.log('  ✅ barem: SET (JSON stringified)');
+                            console.log('  ✅ files: SET (' + fileCount + ' files)');
+                            
                             console.log('Sending analysis request to /api/analyze with', fileCount, 'files');
-                            await fetch('/api/analyze', {
+                            const analyzeResponse = await fetch('/api/analyze', {
                               method: 'POST',
                               body: formData,
                             });
+                            
+                            console.log('📥 ANALYSIS RESPONSE:');
+                            console.log('- Response status:', analyzeResponse.status);
+                            console.log('- Response ok:', analyzeResponse.ok);
+                            
+                            if (!analyzeResponse.ok) {
+                              console.error('Analysis API failed:', analyzeResponse.status, analyzeResponse.statusText);
+                              const errorText = await analyzeResponse.text();
+                              console.error('Error response body:', errorText);
+                            } else {
+                              const analyzeResult = await analyzeResponse.json();
+                              console.log('✅ Analysis completed successfully');
+                              console.log('Analysis result:', analyzeResult);
+                            }
                             setAnalysisProgress(100);
                           } catch (err) {
                             console.error('Error during AI analysis:', err);
