@@ -4,6 +4,8 @@ import React, { useState, useMemo } from "react"
 import dynamic from 'next/dynamic'
 import Link from "next/link"
 import { useJobWithCandidates } from "@/hooks/use-data"
+import { useCandidateReports, mergeCandidateWithReport } from "@/hooks/use-candidate-reports"
+import { AIReportModal } from "@/components/ai-report-modal"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -129,6 +131,7 @@ const savedBarems: Barem[] = [
 
 export function JobDetailView({ jobId }: JobDetailViewProps) {
   const { job, candidates, loading } = useJobWithCandidates(jobId)
+  const { candidateReports, loading: reportsLoading } = useCandidateReports(job?.title)
   const [selectedApplicants, setSelectedApplicants] = useState<number[]>([])
   const [showBaremModal, setShowBaremModal] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -139,7 +142,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [candidateSearch, setCandidateSearch] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState("aiScore")
-  const [aiReportCandidate, setAiReportCandidate] = useState<number | null>(null)
+  const [aiReportCandidate, setAiReportCandidate] = useState<any | null>(null)
   const [viewingCV, setViewingCV] = useState<{candidateId: number, cvUrl: string} | null>(null)
 
   // Barem creation states
@@ -153,11 +156,16 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [categorizedSkills, setCategorizedSkills] = useState<Record<string, string[]>>({});
   const [isExtracting, setIsExtracting] = useState(false);
 
-  // Filter and sort candidates
+  // Filter and sort candidates with real backend data
   const filteredAndSortedCandidates = useMemo(() => {
     if (!candidates) return []
 
-    const filtered = candidates.filter((candidate) => {
+    // Merge candidates with their AI reports from backend
+    const candidatesWithReports = candidates.map(candidate => 
+      mergeCandidateWithReport(candidate, candidateReports)
+    )
+
+    const filtered = candidatesWithReports.filter((candidate) => {
       const matchesSearch =
         candidate.name.toLowerCase().includes(candidateSearch.toLowerCase()) ||
         candidate.email.toLowerCase().includes(candidateSearch.toLowerCase()) ||
@@ -181,7 +189,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     })
 
     return filtered
-  }, [candidates, candidateSearch, sortBy])
+  }, [candidates, candidateReports, candidateSearch, sortBy])
 
   // Pagination for candidates
   const totalPages = Math.ceil(filteredAndSortedCandidates.length / CANDIDATES_PER_PAGE)
@@ -191,10 +199,15 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   )
 
   // Show loading state
-  if (loading) {
+  if (loading || reportsLoading) {
     return (
       <div className="flex items-center justify-center min-h-96">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">
+            {loading ? "Loading job details..." : "Loading candidate reports..."}
+          </p>
+        </div>
       </div>
     )
   }
@@ -468,8 +481,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     };
   }
 
-  const toggleAiReport = (candidateId: number) => {
-    setAiReportCandidate(aiReportCandidate === candidateId ? null : candidateId)
+  const toggleAiReport = (candidate: any) => {
+    setAiReportCandidate(aiReportCandidate && aiReportCandidate.id === candidate.id ? null : candidate)
   }
 
   const getCVUrl = (candidate: any) => {
@@ -829,9 +842,15 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="font-semibold text-gray-900 text-lg">{applicant.name}</h4>
                           <div className="flex items-center gap-2">
-                            <Badge className={`${getScoreColor(applicant.aiScore)} border font-bold`}>
-                              {applicant.aiScore}/10
-                            </Badge>
+                            {applicant.hasAIReport ? (
+                              <Badge className={`${getScoreColor(applicant.aiScore)} border font-bold`}>
+                                {applicant.aiScore}/10
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-gray-300 text-gray-500">
+                                Not Analyzed
+                              </Badge>
+                            )}
                           </div>
                         </div>
                         <div className="grid grid-cols-1 gap-2 text-sm text-gray-600 mb-3">
@@ -859,125 +878,34 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                             <Eye className="h-3 w-3 mr-1" />
                             Resume
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => toggleAiReport(applicant.id)}
-                            className="btn-secondary bg-transparent"
-                            title="View AI Report"
-                          >
-                            <FileText className="h-3 w-3 mr-1" />
-                            AI Report
-                          </Button>
+                          {applicant.hasAIReport ? (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => toggleAiReport(applicant)}
+                              className="btn-secondary bg-transparent"
+                              title="View AI Report"
+                            >
+                              <FileText className="h-3 w-3 mr-1" />
+                              AI Report
+                            </Button>
+                          ) : (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              disabled
+                              className="btn-secondary bg-transparent opacity-50"
+                              title="No AI analysis available"
+                            >
+                              <FileText className="h-3 w-3 mr-1" />
+                              Not Analyzed
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-
-                {/* AI Report Section */}
-                {aiReportCandidate && (
-                  <div className="mt-6 p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200 animate-slideDown">
-                    {(() => {
-                      const candidate = paginatedCandidates.find(c => c.id === aiReportCandidate);
-                      if (!candidate) return null;
-                      const aiReport = generateAIReport(candidate);
-                      
-                      return (
-                        <div>
-                          <div className="flex items-center justify-between mb-6">
-                            <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 bg-purple-600 rounded-full flex items-center justify-center">
-                                <FileText className="h-5 w-5 text-white" />
-                              </div>
-                              <div>
-                                <h3 className="text-lg font-bold text-purple-900">AI Analysis Report</h3>
-                                <p className="text-sm text-purple-700">{candidate.name}</p>
-                              </div>
-                            </div>
-                            <div className="text-center">
-                              <div className="text-3xl font-bold text-purple-900">{aiReport.overallScore}/10</div>
-                              <div className="text-xs font-medium text-purple-700">Overall Score</div>
-                            </div>
-                          </div>
-                          
-                          {/* Skills Analysis */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                            <div>
-                              <h4 className="text-sm font-semibold text-purple-800 uppercase tracking-wide mb-4">Skills Breakdown</h4>
-                              <div className="space-y-4">
-                                {aiReport.skillsAnalysis.map((skill, idx) => (
-                                  <div key={idx} className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-sm text-purple-700 font-medium">{skill.skill}</span>
-                                      <span className="text-sm font-semibold text-purple-900">{skill.score.toFixed(1)}</span>
-                                    </div>
-                                    <div className="w-full bg-purple-200 rounded-full h-2">
-                                      <div 
-                                        className="bg-purple-600 h-2 rounded-full transition-all duration-300" 
-                                        style={{ width: `${(skill.score / 10) * 100}%` }}
-                                      ></div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                            
-                            <div>
-                              <h4 className="text-sm font-semibold text-purple-800 uppercase tracking-wide mb-4">Recommendation</h4>
-                              <div className="p-4 bg-white/50 rounded-lg border border-purple-200">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <div className={`h-3 w-3 rounded-full ${
-                                    aiReport.recommendation === "Highly Recommended" ? "bg-veo-green" :
-                                    aiReport.recommendation === "Recommended" ? "bg-yellow-500" : "bg-red-500"
-                                  }`}></div>
-                                  <span className="text-sm font-semibold text-purple-900">{aiReport.recommendation}</span>
-                                </div>
-                                
-                                <div className="space-y-3">
-                                  <div>
-                                    <h5 className="text-xs font-semibold text-purple-800 mb-1">Strengths</h5>
-                                    <ul className="text-xs text-purple-700 space-y-1">
-                                      {aiReport.strengths.map((strength, idx) => (
-                                        <li key={idx} className="flex items-start gap-1">
-                                          <span className="text-veo-green mt-0.5">•</span>
-                                          {strength}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                  
-                                  <div>
-                                    <h5 className="text-xs font-semibold text-purple-800 mb-1">Areas of Concern</h5>
-                                    <ul className="text-xs text-purple-700 space-y-1">
-                                      {aiReport.concerns.map((concern, idx) => (
-                                        <li key={idx} className="flex items-start gap-1">
-                                          <span className="text-amber-600 mt-0.5">•</span>
-                                          {concern}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="flex justify-end pt-4 border-t border-purple-200">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => setAiReportCandidate(null)}
-                              className="text-purple-700 border-purple-300 hover:bg-purple-50"
-                            >
-                              Close Report
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
 
                 {/* Pagination */}
                 {totalPages > 1 && (
@@ -1046,16 +974,22 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                 {[
                   { label: "Total Applicants", value: candidates.length },
                   {
-                    label: "Avg. AI Score",
-                    value: candidates.length > 0 
-                      ? `${Math.round(candidates.reduce((sum, a) => sum + a.aiScore, 0) / candidates.length)}%`
-                      : "0%",
+                    label: "Analyzed Candidates",
+                    value: filteredAndSortedCandidates.filter(c => c.hasAIReport).length,
                   },
                   {
-                    label: "New Applications",
-                    value: candidates.filter((a) => a.status === "New").length,
+                    label: "Avg. AI Score",
+                    value: (() => {
+                      const analyzedCandidates = filteredAndSortedCandidates.filter(c => c.hasAIReport && c.aiScore > 0)
+                      return analyzedCandidates.length > 0 
+                        ? `${(analyzedCandidates.reduce((sum, a) => sum + a.aiScore, 0) / analyzedCandidates.length).toFixed(1)}/10`
+                        : "No data"
+                    })(),
                   },
-                  { label: "High Scores (90%+)", value: candidates.filter((a) => a.aiScore >= 90).length },
+                  {
+                    label: "Not Analyzed",
+                    value: filteredAndSortedCandidates.filter(c => !c.hasAIReport).length,
+                  },
                 ].map((stat, index) => (
                   <div
                     key={stat.label}
@@ -1472,6 +1406,13 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* AI Report Modal */}
+      <AIReportModal
+        isOpen={!!aiReportCandidate}
+        onClose={() => setAiReportCandidate(null)}
+        candidate={aiReportCandidate}
+      />
     </div>
   )
 }
