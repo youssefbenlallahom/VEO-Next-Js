@@ -34,7 +34,8 @@ import {
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { useCandidates, useJobs } from "@/hooks/use-data"
+import { AIReportModal } from "@/components/ai-report-modal"
+import { useAllCandidates } from "@/hooks/use-backend-api"
 
 // Simple function to extract country from location
 const getCountryFromLocation = (location: string): string => {
@@ -54,11 +55,22 @@ const seededRandom = (seed: number) => {
   return x - Math.floor(x);
 };
 
-// Mock AI Report Data
+// Real AI Report Data from Database
 const generateAIReport = (candidate: any) => {
-  // Create a consistent seed based on candidate ID
-  const seed = candidate.id;
+  // If the candidate has real AI report data, use it
+  if (candidate.hasAIReport && candidate.scoreDetails) {
+    return {
+      overallScore: candidate.aiScore,
+      skillsAnalysis: candidate.scoreDetails.skills_breakdown || [],
+      strengths: candidate.strengths || [],
+      concerns: candidate.gaps || [],
+      recommendation: candidate.aiScore >= 8.5 ? "Highly Recommended" : 
+                    candidate.aiScore >= 7 ? "Recommended" : "Consider with Caution",
+    }
+  }
   
+  // Fallback to generated data if no real report exists
+  const seed = candidate.id;
   return {
     overallScore: candidate.aiScore,
     skillsAnalysis: [
@@ -83,20 +95,19 @@ const generateAIReport = (candidate: any) => {
         weight: 20,
       },
     ],
-    strengths: [
+    strengths: candidate.strengths || [
       "Strong technical background with relevant experience",
       "Excellent communication skills demonstrated in portfolio",
       "Proven track record of successful project delivery",
     ],
-    concerns: ["Limited experience with specific technology stack", "Gap in recent work history needs clarification"],
+    concerns: candidate.gaps || ["Limited experience with specific technology stack", "Gap in recent work history needs clarification"],
     recommendation:
       candidate.aiScore >= 8.5 ? "Highly Recommended" : candidate.aiScore >= 7 ? "Recommended" : "Consider with Caution",
   };
 }
 
 export function CandidatesOverview() {
-  const { candidates, loading: candidatesLoading, error: candidatesError } = useCandidates()
-  const { jobs, loading: jobsLoading } = useJobs()
+  const { candidates, loading: candidatesLoading, error: candidatesError } = useAllCandidates()
   
   const [searchTerm, setSearchTerm] = useState("")
 
@@ -108,7 +119,7 @@ export function CandidatesOverview() {
   const [selectedCandidates, setSelectedCandidates] = useState<number[]>([])
   const [sortBy, setSortBy] = useState("aiScore")
   const [expandedCandidate, setExpandedCandidate] = useState<number | null>(null)
-  const [aiReportCandidate, setAiReportCandidate] = useState<number | null>(null)
+  const [aiReportCandidate, setAiReportCandidate] = useState<any | null>(null)
   const [viewingCV, setViewingCV] = useState<{candidateId: number, cvUrl: string} | null>(null)
 
   // Filter and sort candidates - moved before early returns
@@ -162,13 +173,16 @@ export function CandidatesOverview() {
 
   // Stats dynamiques basées sur les filtres appliqués - moved before early returns
   const filteredStats = useMemo(() => {
+    const analyzedCandidates = filteredAndSortedCandidates.filter(c => c.hasAIReport && c.aiScore > 0)
     return {
       totalCandidates: filteredAndSortedCandidates.length,
+      analyzedCandidates: analyzedCandidates.length,
+      notAnalyzedCandidates: filteredAndSortedCandidates.length - analyzedCandidates.length,
       avgScore:
-        filteredAndSortedCandidates.length > 0
+        analyzedCandidates.length > 0
           ? Math.round(
-              filteredAndSortedCandidates.reduce((sum, c) => sum + c.aiScore, 0) / filteredAndSortedCandidates.length,
-            )
+              analyzedCandidates.reduce((sum, c) => sum + c.aiScore, 0) / analyzedCandidates.length * 10
+            ) / 10
           : 0,
       uniqueCountries: [...new Set(filteredAndSortedCandidates.map((c) => getCountryFromLocation(c.location)))].length,
     }
@@ -180,7 +194,7 @@ export function CandidatesOverview() {
   const countries = candidates ? [...new Set(candidates.map((c) => getCountryFromLocation(c.location)))].sort() : []
 
   // Show loading state
-  if (candidatesLoading || jobsLoading) {
+  if (candidatesLoading) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -220,19 +234,49 @@ export function CandidatesOverview() {
     setExpandedCandidate(expandedCandidate === candidateId ? null : candidateId)
   }
 
-  const toggleAiReport = (candidateId: number) => {
-    setAiReportCandidate(aiReportCandidate === candidateId ? null : candidateId)
+  const toggleAiReport = (candidate: any) => {
+    console.log('🔍 Toggle AI Report clicked for:', candidate.name)
+    console.log('📊 Candidate has AI report:', candidate.hasAIReport)
+    console.log('🔧 Current aiReportCandidate:', aiReportCandidate)
+    console.log('📋 Full candidate object:', candidate)
+    
+    setAiReportCandidate(aiReportCandidate && aiReportCandidate.id === candidate.id ? null : candidate)
   }
 
   const getCVUrl = (candidate: any) => {
-    // Convert candidate name back to filename format
-    // This should reverse the process in the API: nameFromFile = filename.replace('-cv.pdf', '').split('-').map(...).join(' ')
-    const fileName = candidate.name
-      .toLowerCase()
-      .replace(/\s+/g, '-');
+    // Use the same CV URL generation logic as in job detail view
+    // Mapping of candidate names to actual PDF filenames
+    const nameToFileMap: Record<string, string> = {
+      // HR Data Analyst candidates
+      "Hadil Msadak": "hadil-msadak-cv.pdf",
+      "Ghassen Abbes": "ghassen-abbes-cv.pdf",
+      "Ahmed Kassab": "ahmed-kassab-cv.pdf",
+      "Arwa Lassoued": "arwa-lassoued-cv.pdf",
+      "Baha Kahri": "baha-kahri-cv.pdf", 
+      "Baha Khemiri": "baha-khemiri-cv.pdf",
+      "Ferchichi Mehdi": "ferchichi-mehdi-cv.pdf",
+      "Ghassen Bouzayen": "ghassen-bouzayen-cv.pdf",
+      "Imen Zarai": "imen-zarai-cv.pdf",
+      "Kais Garci": "kais-garci-cv.pdf",
+      "Lamia Cherni": "lamia-cherni-cv.pdf",
+      "Mahdi Abdelhedi": "mahdi-abdelhedi-cv.pdf",
+      "Mohamed Gharghari El Ayech": "mohamed-gharghari-el-ayech-cv.pdf",
+      "Rim Jamli": "rim-jamli-cv.pdf",
+      "Safa Ochi": "safa-ochi-cv.pdf",
+      "Alaeddine Selmi": "alaeddine-selmi-cv.pdf"
+    };
+    
+    // Use mapping if available, otherwise try to convert name
+    const fileName = nameToFileMap[candidate.name] || 
+      (candidate.name.toLowerCase().replace(/\s+/g, '-') + '-cv.pdf');
     
     // Use the API route to serve the CV
-    const url = `/api/cv/${encodeURIComponent(candidate.position)}/${fileName}-cv.pdf`;
+    const jobTitle = candidate.position || '';
+    const url = `/api/cv/${encodeURIComponent(jobTitle)}/${fileName}`;
+    console.log('Generated CV URL:', url);
+    console.log('For candidate:', candidate.name);
+    console.log('Using filename:', fileName);
+    console.log('Job title:', jobTitle);
     return url;
   }
 
@@ -308,11 +352,12 @@ export function CandidatesOverview() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
   { title: "Total Candidates", value: filteredStats.totalCandidates, icon: Users, color: "blue" },
-  { title: "Avg. AI Score", value: `${filteredStats.avgScore}%`, icon: TrendingUp, color: "green" },
-  { title: "Countries", value: filteredStats.uniqueCountries, icon: Globe, color: "indigo" },
+  { title: "Analyzed", value: filteredStats.analyzedCandidates, icon: Brain, color: "green" },
+  { title: "Not Analyzed", value: filteredStats.notAnalyzedCandidates, icon: AlertCircle, color: "amber" },
+  { title: "Avg. AI Score", value: filteredStats.avgScore > 0 ? `${filteredStats.avgScore}/10` : "N/A", icon: TrendingUp, color: "purple" },
 ].map((stat, index) => (
           <Card
             key={stat.title}
@@ -435,13 +480,12 @@ export function CandidatesOverview() {
         {paginatedCandidates.map((candidate, index) => {
           const aiReport = generateAIReport(candidate)
           const isExpanded = expandedCandidate === candidate.id
-          const isAiReportExpanded = aiReportCandidate === candidate.id
 
           return (
             <Card
               key={candidate.id}
               className={`group hover:shadow-xl transition-all duration-300 border-0 shadow-md hover:-translate-y-1 animate-slideUp ${
-                isExpanded || isAiReportExpanded ? "ring-2 ring-veo-green/30" : ""
+                isExpanded ? "ring-2 ring-veo-green/30" : ""
               }`}
               style={{ animationDelay: `${index * 0.05}s` }}
             >
@@ -539,10 +583,11 @@ export function CandidatesOverview() {
                       size="sm"
                       onClick={() => toggleCandidateExpansion(candidate.id)}
                       className="flex-1 bg-veo-green hover:bg-veo-green/90 text-white shadow-sm hover:shadow-md transition-all"
+                      disabled={!candidate.hasAIReport}
                     >
                       <Brain className="h-3 w-3 mr-2" />
-                      View Score
-                      {isExpanded ? <ChevronUp className="h-3 w-3 ml-2" /> : <ChevronDown className="h-3 w-3 ml-2" />}
+                      {candidate.hasAIReport ? 'View Score' : 'Not Analyzed'}
+                      {candidate.hasAIReport && (isExpanded ? <ChevronUp className="h-3 w-3 ml-2" /> : <ChevronDown className="h-3 w-3 ml-2" />)}
                     </Button>
                     <Button
                       size="sm"
@@ -557,16 +602,17 @@ export function CandidatesOverview() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => toggleAiReport(candidate.id)}
+                      onClick={() => toggleAiReport(candidate)}
                       className="px-3 hover:bg-gray-50 border-gray-200"
-                      title="View AI Report"
+                      title={candidate.hasAIReport ? "View AI Report" : "No AI analysis available"}
+                      disabled={!candidate.hasAIReport}
                     >
                       <FileText className="h-3 w-3" />
                     </Button>
                   </div>
 
                   {/* Expanded Score Section */}
-                  {isExpanded && (
+                  {isExpanded && candidate.hasAIReport && (
                     <div className="mt-4 pt-4 border-t border-gray-100 space-y-4 animate-slideDown">
                       <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
                         <div className="flex items-center justify-between">
@@ -583,47 +629,29 @@ export function CandidatesOverview() {
                     </div>
                   )}
 
-                  {/* AI Report Section */}
-                  {isAiReportExpanded && (
+                  {/* Not Analyzed Section */}
+                  {isExpanded && !candidate.hasAIReport && (
                     <div className="mt-4 pt-4 border-t border-gray-100 space-y-4 animate-slideDown">
-                      <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
-                        <div className="flex items-center justify-between mb-4">
-                          <h4 className="text-sm font-bold text-purple-900">AI Analysis Report</h4>
-                          <div className="text-xl font-bold text-purple-900">{aiReport.overallScore}/10</div>
-                        </div>
-                        
-                        {/* Skills Analysis */}
-                        <div className="space-y-3 mb-4">
-                          <h5 className="text-xs font-semibold text-purple-800 uppercase tracking-wide">Skills Breakdown</h5>
-                          {aiReport.skillsAnalysis.map((skill, idx) => (
-                            <div key={idx} className="flex items-center justify-between">
-                              <span className="text-xs text-purple-700 font-medium">{skill.skill}</span>
-                              <div className="flex items-center gap-2">
-                                <div className="w-16 bg-purple-200 rounded-full h-1.5">
-                                  <div 
-                                    className="bg-purple-600 h-1.5 rounded-full" 
-                                    style={{ width: `${(skill.score / 10) * 100}%` }}
-                                  ></div>
-                                </div>
-                                <span className="text-xs font-semibold text-purple-900 w-8">{skill.score.toFixed(1)}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Recommendation */}
-                        <div className="pt-3 border-t border-purple-200">
-                          <div className="flex items-center gap-2">
-                            <div className={`h-2 w-2 rounded-full ${
-                              aiReport.recommendation === "Highly Recommended" ? "bg-green-500" :
-                              aiReport.recommendation === "Recommended" ? "bg-yellow-500" : "bg-red-500"
-                            }`}></div>
-                            <span className="text-xs font-semibold text-purple-900">{aiReport.recommendation}</span>
-                          </div>
+                      <div className="p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border border-gray-200">
+                        <div className="text-center">
+                          <h4 className="text-sm font-bold text-gray-700 mb-2">Not Analyzed</h4>
+                          <p className="text-xs text-gray-600 mb-3">This candidate has not been analyzed yet.</p>
+                          <Button 
+                            size="sm" 
+                            className="bg-veo-green hover:bg-veo-green/90 text-white"
+                            onClick={() => {
+                              // Here you could trigger analysis or redirect to analysis page
+                              alert('Analysis feature coming soon!')
+                            }}
+                          >
+                            <Brain className="h-3 w-3 mr-1" />
+                            Analyze Candidate
+                          </Button>
                         </div>
                       </div>
                     </div>
                   )}
+
                 </div>
               </CardContent>
             </Card>
@@ -770,6 +798,13 @@ export function CandidatesOverview() {
       </div>
     </DialogContent>
   </Dialog>
+
+  {/* AI Report Modal */}
+  <AIReportModal
+    isOpen={!!aiReportCandidate}
+    onClose={() => setAiReportCandidate(null)}
+    candidate={aiReportCandidate}
+  />
     </div>
   )
 }

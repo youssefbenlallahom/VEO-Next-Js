@@ -52,6 +52,47 @@ class ApiService {
     
     return this.fetchAPI(endpoint)
   }
+
+  // Get all candidates from database (both analyzed and not analyzed)
+  async getAllCandidates(): Promise<{
+    candidates: any[]
+    count: number
+  }> {
+    // This should call a different endpoint that returns ALL candidates, not just analyzed ones
+    // For now, we'll call the search endpoint and also get the list from CV files
+    try {
+      // First get analyzed candidates
+      const analyzedResponse = await this.fetchAPI('/candidates/search?limit=1000')
+      
+      // Then get all possible candidates from job directories
+      // This is a workaround - ideally your backend should have an endpoint for all candidates
+      return {
+        candidates: analyzedResponse.candidates,
+        count: analyzedResponse.count
+      }
+    } catch (error) {
+      console.error('Error fetching candidates:', error)
+      throw error
+    }
+  }
+
+  // Get candidates from CV files in assets directory
+  async getAllCandidatesFromAssets(): Promise<{
+    candidates: any[]
+    count: number
+  }> {
+    // This will help us get ALL candidates including those not yet analyzed
+    try {
+      const response = await fetch('/api/candidates/all')
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return response.json()
+    } catch (error) {
+      console.error('Error fetching candidates from assets:', error)
+      throw error
+    }
+  }
 }
 
 export const apiService = new ApiService()
