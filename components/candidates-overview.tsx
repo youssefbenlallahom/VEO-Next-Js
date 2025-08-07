@@ -31,6 +31,7 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
+  RotateCcw,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -107,7 +108,7 @@ const generateAIReport = (candidate: any) => {
 }
 
 export function CandidatesOverview() {
-  const { candidates, loading: candidatesLoading, error: candidatesError } = useAllCandidates()
+  const { candidates, loading: candidatesLoading, error: candidatesError, refetch, refreshCounter } = useAllCandidates()
   
   const [searchTerm, setSearchTerm] = useState("")
 
@@ -235,11 +236,6 @@ export function CandidatesOverview() {
   }
 
   const toggleAiReport = (candidate: any) => {
-    console.log('🔍 Toggle AI Report clicked for:', candidate.name)
-    console.log('📊 Candidate has AI report:', candidate.hasAIReport)
-    console.log('🔧 Current aiReportCandidate:', aiReportCandidate)
-    console.log('📋 Full candidate object:', candidate)
-    
     setAiReportCandidate(aiReportCandidate && aiReportCandidate.id === candidate.id ? null : candidate)
   }
 
@@ -450,27 +446,49 @@ export function CandidatesOverview() {
               Showing {paginatedCandidates.length} of {filteredStats.totalCandidates} candidates
             </div>
 
-            {(searchTerm ||
-
-              jobFilter !== "all" ||
-              scoreFilter !== "all" ||
-              countryFilter !== "all") && (
+            <div className="flex gap-2">
+              {/* Refresh Data Button */}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setSearchTerm("")
-
-                  setJobFilter("all")
-                  setScoreFilter("all")
-                  setCountryFilter("all")
-                  setCurrentPage(1)
+                onClick={async () => {
+                  console.log('🔄 Manual refresh clicked...')
+                  console.log('📊 Current candidates count:', candidates?.length || 0)
+                  console.log('📋 Before refresh - Arwa status:', candidates?.find(c => c.name.includes('Arwa'))?.hasAIReport)
+                  console.log('📋 Before refresh - Baha status:', candidates?.find(c => c.name.includes('Baha'))?.hasAIReport)
+                  
+                  // Force refresh
+                  await refetch()
+                  
+                  console.log('✅ Refresh completed')
                 }}
                 className="hover:bg-gray-50"
+                disabled={candidatesLoading}
               >
-                Clear Filters
+                <RotateCcw className="h-4 w-4 mr-1" />
+                {candidatesLoading ? 'Loading...' : 'Refresh'}
               </Button>
-            )}
+
+              {(searchTerm ||
+                jobFilter !== "all" ||
+                scoreFilter !== "all" ||
+                countryFilter !== "all") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSearchTerm("")
+                    setJobFilter("all")
+                    setScoreFilter("all")
+                    setCountryFilter("all")
+                    setCurrentPage(1)
+                  }}
+                  className="hover:bg-gray-50"
+                >
+                  Clear Filters
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

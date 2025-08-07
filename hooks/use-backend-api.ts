@@ -103,12 +103,17 @@ export function useAllCandidates() {
   const [candidates, setCandidates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshCounter, setRefreshCounter] = useState(0)
 
   const fetchCandidates = async () => {
     try {
       setLoading(true)
       setError(null)
-      console.log('🚀 Fetching all candidates (analyzed + not analyzed)...')
+      
+      // Clear existing candidates first to force re-render
+      setCandidates([])
+      
+      console.log('🚀 Fetching all candidates (analyzed + not analyzed)...', new Date().toISOString())
       
       // Get all candidates from assets (this includes everyone)
       const allCandidatesResponse = await apiService.getAllCandidatesFromAssets()
@@ -172,7 +177,10 @@ export function useAllCandidates() {
       console.log('📋 Analyzed candidates:', mergedCandidates.filter(c => c.hasAIReport).length)
       console.log('❓ Not analyzed candidates:', mergedCandidates.filter(c => !c.hasAIReport).length)
       
-      setCandidates(mergedCandidates)
+      // Force React to re-render by creating a completely new array
+      setCandidates([...mergedCandidates])
+      setRefreshCounter(prev => prev + 1)
+      console.log('🔄 State updated, refresh counter:', refreshCounter + 1)
     } catch (err) {
       console.error('❌ Error fetching candidates:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch candidates')
@@ -185,7 +193,13 @@ export function useAllCandidates() {
     fetchCandidates()
   }, [])
 
-  return { candidates, loading, error, refetch: fetchCandidates }
+  const manualRefetch = async () => {
+    console.log('🔄 Manual refetch triggered...')
+    await fetchCandidates()
+    console.log('✅ Manual refetch completed')
+  }
+
+  return { candidates, loading, error, refetch: manualRefetch, refreshCounter }
 }
 
 // Hook for report deletion
