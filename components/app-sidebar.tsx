@@ -12,7 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Briefcase, Users, BarChart3 } from "lucide-react"
+import { Briefcase, Users } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 
@@ -26,11 +26,6 @@ const menuItems = [
     title: "All Candidates",
     url: "/candidates",
     icon: Users,
-  },
-  {
-    title: "Reports & Analytics",
-    url: "/reports",
-    icon: BarChart3,
   },
 ]
 
