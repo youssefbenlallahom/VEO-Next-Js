@@ -6,6 +6,8 @@ import Link from "next/link"
 import { useJobWithCandidates } from "@/hooks/use-data"
 import { useCandidateReports, mergeCandidateWithReport } from "@/hooks/use-candidate-reports"
 import { AIReportModal } from "@/components/ai-report-modal"
+import { JobSkillsModal } from "@/components/job-skills-modal"
+import { AssessmentCriteriaSidebar } from "@/components/assessment-criteria-sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +29,7 @@ import {
   Settings,
   Download,
   MessageSquare,
+  Zap,
   Eye,
   Wand2,
   ChevronLeft,
@@ -89,54 +92,13 @@ interface JobDetailViewProps {
 
 const CANDIDATES_PER_PAGE = 10
 
-interface Barem {
-  id: string
-  name: string
-  description: string
-  skills: Record<string, number>
-  createdDate: string
-  jobTitle?: string
-}
-
-// Mock saved barems
-const savedBarems: Barem[] = [
-  {
-    id: "1",
-    name: "Senior Software Engineer Standard",
-    description: "Standard evaluation criteria for senior software engineering positions",
-    skills: {
-      "JavaScript/TypeScript": 25,
-      React: 20,
-      "Node.js": 20,
-      "AWS/Cloud": 15,
-      "Full-stack Experience": 20,
-    },
-    createdDate: "2024-01-10",
-    jobTitle: "Senior Software Engineer",
-  },
-  {
-    id: "2",
-    name: "Frontend Developer Focus",
-    description: "Emphasis on frontend technologies and user experience",
-    skills: {
-      "React/Vue/Angular": 30,
-      "JavaScript/TypeScript": 25,
-      "CSS/HTML": 20,
-      "UI/UX Design": 15,
-      Testing: 10,
-    },
-    createdDate: "2024-01-08",
-  },
-]
-
 export function JobDetailView({ jobId }: JobDetailViewProps) {
   const { job, candidates, loading } = useJobWithCandidates(jobId)
   const { candidateReports, loading: reportsLoading } = useCandidateReports(job?.title)
   const [selectedApplicants, setSelectedApplicants] = useState<number[]>([])
-  const [showBaremModal, setShowBaremModal] = useState(false)
+  const [showJobSkillsModal, setShowJobSkillsModal] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisProgress, setAnalysisProgress] = useState(0)
-  const [currentBarem, setCurrentBarem] = useState<Barem | null>(null)
 
   // Candidate filtering and pagination
   const [candidateSearch, setCandidateSearch] = useState("")
@@ -144,17 +106,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [sortBy, setSortBy] = useState("aiScore")
   const [aiReportCandidate, setAiReportCandidate] = useState<any | null>(null)
   const [viewingCV, setViewingCV] = useState<{candidateId: number, cvUrl: string} | null>(null)
-
-  // Barem creation states
-  const [baremName, setBaremName] = useState("");
-  const [baremDescription, setBaremDescription] = useState("");
-  // Weights for categories (except Languages)
-  const [categoryWeights, setCategoryWeights] = useState<Record<string, number>>({});
-  // Weights for individual languages
-  const [languageWeights, setLanguageWeights] = useState<Record<string, number>>({});
-  // Store categorized skills from API
-  const [categorizedSkills, setCategorizedSkills] = useState<Record<string, string[]>>({});
-  const [isExtracting, setIsExtracting] = useState(false);
 
   // Filter and sort candidates with real backend data
   const filteredAndSortedCandidates = useMemo(() => {
@@ -169,7 +120,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       const matchesSearch =
         candidate.name.toLowerCase().includes(candidateSearch.toLowerCase()) ||
         candidate.email.toLowerCase().includes(candidateSearch.toLowerCase()) ||
-        candidate.skills.some((skill) => skill.toLowerCase().includes(candidateSearch.toLowerCase()))
+        candidate.skills.some((skill: string) => skill.toLowerCase().includes(candidateSearch.toLowerCase()))
 
       return matchesSearch
     })
@@ -242,172 +193,175 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     }
   }
 
-  // AI-powered skill extraction and barem creation (category-based)
-  const extractSkillsFromJob = async () => {
-    console.log('🎯 EXTRACT SKILLS BUTTON CLICKED!');
-    if (!job) return;
-    setIsExtracting(true);
-    setCategoryWeights({});
-    setLanguageWeights({});
-    setCategorizedSkills({});
-
-    try {
-      console.log('📡 Calling /api/extract-skills...');
-      console.log('Job title:', job.title);
-      console.log('Job description length:', job.description.length);
-      
-      // 1. Extract skills from job description
-      const extractRes = await fetch('/api/extract-skills', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          job_title: job.title,
-          job_description: job.description,
-        }),
-      });
-      
-      console.log('Extract skills response status:', extractRes.status);
-      console.log('Extract skills response ok:', extractRes.ok);
-      
-      if (!extractRes.ok) {
-        console.error('Extract skills API failed:', extractRes.status, extractRes.statusText);
-        const errorText = await extractRes.text();
-        console.error('Error response body:', errorText);
-        return;
-      }
-      
-      const extractData = await extractRes.json();
-      console.log('📊 Skills extraction result:');
-      console.log('Extract data:', JSON.stringify(extractData, null, 2));
-
-      // 2. Prepare initial weights
-      const cats = extractData.categorized_skills || {};
-      console.log('📋 Categorized skills received:', cats);
-      setCategorizedSkills(cats);
-      // Exclude Languages from categories
-      const categoryNames = Object.keys(cats).filter((cat) => cat !== 'Languages');
-      const languageSkills = cats['Languages'] || [];
-      console.log('📂 Category names:', categoryNames);
-      console.log('🗣️ Language skills:', languageSkills);
-      
-      // Distribute 100%: 80% for categories, 20% for languages (modifiable)
-      const defaultCatWeight = categoryNames.length > 0 ? Math.floor(80 / categoryNames.length) : 0;
-      const defaultLangWeight = languageSkills.length > 0 ? Math.floor(20 / languageSkills.length) : 0;
-      const catRemainder = 80 - defaultCatWeight * categoryNames.length;
-      const langRemainder = 20 - defaultLangWeight * languageSkills.length;
-      const initialCatWeights: Record<string, number> = {};
-      const initialLangWeights: Record<string, number> = {};
-      categoryNames.forEach((cat, idx) => {
-        initialCatWeights[cat] = defaultCatWeight + (idx < catRemainder ? 1 : 0);
-      });
-      languageSkills.forEach((lang, idx) => {
-        initialLangWeights[lang] = defaultLangWeight + (idx < langRemainder ? 1 : 0);
-      });
-      
-      console.log('⚖️ Initial category weights:', initialCatWeights);
-      console.log('🗣️ Initial language weights:', initialLangWeights);
-      
-      setCategoryWeights(initialCatWeights);
-      setLanguageWeights(initialLangWeights);
-
-      // 3. Create barem (send weights as per new logic)
-      const skills_weights: Record<string, number> = {};
-      // For categories, use category names as keys (not individual skills)
-      categoryNames.forEach((cat) => {
-        skills_weights[cat] = initialCatWeights[cat];
-      });
-      // For languages, use individual language names as keys (they're not in categories)
-      languageSkills.forEach((lang: string) => {
-        skills_weights[lang] = initialLangWeights[lang];
-      });
-
-      console.log('🏗️ Creating barem with skills weights:', skills_weights);
-
-      const baremRes = await fetch('/api/barem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          skills_weights,
-          categorized_skills: cats,
-        }),
-      });
-      
-      console.log('Barem creation response status:', baremRes.status);
-      console.log('Barem creation response ok:', baremRes.ok);
-      
-      if (!baremRes.ok) {
-        console.error('Barem creation API failed:', baremRes.status, baremRes.statusText);
-        const errorText = await baremRes.text();
-        console.error('Error response body:', errorText);
-        return;
-      }
-      
-      const baremData = await baremRes.json();
-      console.log('🎯 BAREM CREATION SUCCESS!');
-      console.log('=== BAREM JSON FROM EXTRACTION ===');
-      console.log('Barem JSON:', JSON.stringify(baremData, null, 2));
-      console.log('=== END BAREM JSON FROM EXTRACTION ===');
-
-      setCurrentBarem(baremData.barem);
-    } catch (err) {
-      console.error('❌ ERROR in extractSkillsFromJob:', err);
-      setCategoryWeights({});
-      setLanguageWeights({});
-      setCategorizedSkills({});
-      setCurrentBarem(null);
-    } finally {
-      setIsExtracting(false);
-    }
-  };
-
-  // Update category weight
-  const updateCategoryWeight = (cat: string, weight: number) => {
-    setCategoryWeights((prev) => ({ ...prev, [cat]: weight }));
-  };
-  // Update language weight
-  const updateLanguageWeight = (lang: string, weight: number) => {
-    setLanguageWeights((prev) => ({ ...prev, [lang]: weight }));
-  };
-  // Auto-distribute: 80% for categories, 20% for languages
-  const autoDistributeWeights = () => {
-    const cats = Object.keys(categorizedSkills).filter((cat) => cat !== 'Languages');
-    const langs = categorizedSkills['Languages'] || [];
-    const defaultCatWeight = cats.length > 0 ? Math.floor(80 / cats.length) : 0;
-    const defaultLangWeight = langs.length > 0 ? Math.floor(20 / langs.length) : 0;
-    const catRemainder = 80 - defaultCatWeight * cats.length;
-    const langRemainder = 20 - defaultLangWeight * langs.length;
-    const newCatWeights: Record<string, number> = {};
-    const newLangWeights: Record<string, number> = {};
-    cats.forEach((cat, idx) => {
-      newCatWeights[cat] = defaultCatWeight + (idx < catRemainder ? 1 : 0);
-    });
-    langs.forEach((lang, idx) => {
-      newLangWeights[lang] = defaultLangWeight + (idx < langRemainder ? 1 : 0);
-    });
-    setCategoryWeights(newCatWeights);
-    setLanguageWeights(newLangWeights);
-  };
-
-  const startAnalysis = async () => {
-    setIsAnalyzing(true)
-    setAnalysisProgress(0)
-
-    for (let i = 0; i <= 100; i += 10) {
-      await new Promise((resolve) => setTimeout(resolve, 200))
-      setAnalysisProgress(i)
-    }
-
-    setIsAnalyzing(false)
-    setShowBaremModal(false)
+  // Get job-specific assessment criteria
+  const getJobAssessmentCriteria = () => {
+    if (!job) return null
+    
+    const saved = JSON.parse(localStorage.getItem('job-skills-barems') || '[]')
+    // Find criteria specifically for this job title
+    const jobCriteria = saved.find((barem: any) => barem.jobTitle === job.title)
+    return jobCriteria
   }
 
-  // Total = sum of all category weights + all language weights
-  const getTotalWeight = () => {
-    return (
-      Object.values(categoryWeights).reduce((sum, w) => sum + w, 0) +
-      Object.values(languageWeights).reduce((sum, w) => sum + w, 0)
-    );
-  };
+  // Direct analysis without showing modal
+  const startDirectAnalysis = async () => {
+    const criteria = getJobAssessmentCriteria()
+    
+    if (!criteria) {
+      alert('No assessment criteria found for this job. Please configure job skills first.')
+      return
+    }
+
+    console.log('🚀 STARTING DIRECT AI ANALYSIS!')
+    console.log('📋 Using criteria for job:', job.title)
+    
+    setIsAnalyzing(true)
+    setAnalysisProgress(0)
+    
+    try {
+      // Prepare barem data
+      const baremData = {
+        skills: criteria.skills,
+        categorized_skills: criteria.categorizedSkills || {}
+      }
+
+      // Gather all selected CVs as blobs and send in one FormData
+      const formData = new FormData()
+      formData.append('job_title', job.title)
+      formData.append('job_description', job.description)
+      formData.append('barem', JSON.stringify(baremData))
+      
+      // Fetch and append all files
+      let fileCount = 0
+      for (let i = 0; i < selectedApplicants.length; i++) {
+        const candidateId = selectedApplicants[i]
+        const candidate = candidates.find((c: any) => c.id === candidateId)
+        if (!candidate) continue
+        
+        // Get the CV URL (should be a static asset path)
+        const cvUrl = getCVUrl(candidate).replace('/api/cv/', '/assets/jobs/')
+        
+        try {
+          const response = await fetch(cvUrl)
+          if (!response.ok) {
+            console.warn('CV file not found:', cvUrl)
+            continue
+          }
+          const blob = await response.blob()
+          const filename = candidate.name.replace(/\s+/g, '_').toLowerCase() + '.pdf'
+          formData.append('files', blob, filename)
+          fileCount++
+        } catch (e) {
+          console.error('Error fetching CV file:', cvUrl, e)
+        }
+        setAnalysisProgress(Math.round(((i + 1) / selectedApplicants.length) * 80))
+      }
+      
+      if (fileCount === 0) {
+        alert('No CV files found. Make sure your CVs are in public/assets/jobs/<Job Title>/<filename>.pdf')
+        setIsAnalyzing(false)
+        return
+      }
+      
+      console.log('📤 Sending analysis request with', fileCount, 'files')
+      const analyzeResponse = await fetch('/api/analyze', {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!analyzeResponse.ok) {
+        console.error('Analysis API failed:', analyzeResponse.status, analyzeResponse.statusText)
+        const errorText = await analyzeResponse.text()
+        console.error('Error response body:', errorText)
+      } else {
+        const analyzeResult = await analyzeResponse.json()
+        console.log('✅ Analysis completed successfully')
+        console.log('Analysis result:', analyzeResult)
+      }
+      setAnalysisProgress(100)
+      
+    } catch (err) {
+      console.error('Error during AI analysis:', err)
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
+  // Analysis with existing barem function (kept for compatibility)
+  const startAnalysisWithBarem = async (barem: any) => {
+    console.log('🚀 STARTING AI ANALYSIS WITH BAREM!');
+    console.log('📋 Using barem:', barem);
+    
+    setIsAnalyzing(true);
+    setAnalysisProgress(0);
+    
+    try {
+      // Gather all selected CVs as blobs and send in one FormData
+      const formData = new FormData();
+      // Add job info
+      formData.append('job_title', job.title);
+      formData.append('job_description', job.description);
+      formData.append('barem', JSON.stringify(barem));
+      
+      // Fetch and append all files
+      let fileCount = 0;
+      for (let i = 0; i < selectedApplicants.length; i++) {
+        const candidateId = selectedApplicants[i];
+        const candidate = candidates.find((c: any) => c.id === candidateId);
+        if (!candidate) continue;
+        
+        // Get the CV URL (should be a static asset path)
+        const cvUrl = getCVUrl(candidate).replace('/api/cv/', '/assets/jobs/');
+        
+        // Try to fetch the file as blob
+        try {
+          const response = await fetch(cvUrl);
+          if (!response.ok) {
+            console.warn('CV file not found:', cvUrl);
+            continue;
+          }
+          const blob = await response.blob();
+          // Use candidate name or id for filename
+          const filename = candidate.name.replace(/\s+/g, '_').toLowerCase() + '.pdf';
+          formData.append('files', blob, filename);
+          fileCount++;
+        } catch (e) {
+          console.error('Error fetching CV file:', cvUrl, e);
+        }
+        setAnalysisProgress(Math.round(((i + 1) / selectedApplicants.length) * 80));
+      }
+      
+      if (fileCount === 0) {
+        alert('No CV files found. Make sure your CVs are in public/assets/jobs/<Job Title>/<filename>.pdf');
+        setIsAnalyzing(false);
+        return;
+      }
+      
+      console.log('📤 Sending analysis request with', fileCount, 'files');
+      const analyzeResponse = await fetch('/api/analyze', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      console.log('📥 Analysis response status:', analyzeResponse.status);
+      
+      if (!analyzeResponse.ok) {
+        console.error('Analysis API failed:', analyzeResponse.status, analyzeResponse.statusText);
+        const errorText = await analyzeResponse.text();
+        console.error('Error response body:', errorText);
+      } else {
+        const analyzeResult = await analyzeResponse.json();
+        console.log('✅ Analysis completed successfully');
+        console.log('Analysis result:', analyzeResult);
+      }
+      setAnalysisProgress(100);
+      
+    } catch (err) {
+      console.error('Error during AI analysis:', err);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }
 
   const getScoreColor = (score: number) => {
     if (score >= 9) return "bg-veo-green/20 text-veo-green border-veo-green/30"
@@ -714,12 +668,29 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                       </Badge>
                     )}
                     <Button
-                      onClick={() => setShowBaremModal(true)}
+                      onClick={() => setShowJobSkillsModal(true)}
+                      variant="outline"
+                      className="btn-secondary shadow-sm hover:shadow-md"
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      {(() => {
+                        // Check if assessment criteria exist for this job
+                        try {
+                          const saved = JSON.parse(localStorage.getItem('job-skills-barems') || '[]')
+                          const hasAssessment = saved.find((barem: any) => barem.jobTitle === job.title)
+                          return hasAssessment ? 'Modify Assessment' : 'Configure Job Skills'
+                        } catch {
+                          return 'Configure Job Skills'
+                        }
+                      })()}
+                    </Button>
+                    <Button
+                      onClick={startDirectAnalysis}
                       disabled={selectedApplicants.length === 0}
                       className="btn-primary shadow-sm hover:shadow-md"
                     >
-                      <Brain className="h-4 w-4 mr-2" />
-                      AI Analysis
+                      <Zap className="h-4 w-4 mr-2" />
+                      Start AI Analysis
                     </Button>
                   </div>
                 </div>
@@ -834,7 +805,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                         <AvatarFallback className="bg-veo-green/10 text-veo-green font-semibold">
                           {applicant.name
                             .split(" ")
-                            .map((n) => n[0])
+                            .map((n: string) => n[0])
                             .join("")}
                         </AvatarFallback>
                       </Avatar>
@@ -857,7 +828,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                           <span className="font-medium">{applicant.email}</span>
                         </div>
                         <div className="flex flex-wrap gap-1 mb-3">
-                          {applicant.skills.slice(0, 4).map((skill, index) => (
+                          {applicant.skills.slice(0, 4).map((skill: string, index: number) => (
                             <Badge key={index} variant="secondary" className="text-xs bg-gray-100 text-gray-700">
                               {skill}
                             </Badge>
@@ -960,407 +931,140 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
           )}
         </div>
 
-        {/* Sidebar */}
-        {job && (
-          <div className="space-y-6">
+        {/* Quick Stats and Actions Sidebar */}
+        <div className="lg:col-span-1 space-y-8">
+          {/* Quick Stats */}
+          {job && (
             <Card className="shadow-soft animate-slideUp" style={{ animationDelay: "0.4s" }}>
               <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-veo-green" />
-                  Quick Stats
-                </CardTitle>
+                <CardTitle className="text-lg">Quick Stats</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {[
-                  { label: "Total Applicants", value: candidates.length },
-                  {
-                    label: "Analyzed Candidates",
-                    value: filteredAndSortedCandidates.filter(c => c.hasAIReport).length,
-                  },
-                  {
-                    label: "Avg. AI Score",
-                    value: (() => {
-                      const analyzedCandidates = filteredAndSortedCandidates.filter(c => c.hasAIReport && c.aiScore > 0)
-                      return analyzedCandidates.length > 0 
-                        ? `${(analyzedCandidates.reduce((sum, a) => sum + a.aiScore, 0) / analyzedCandidates.length).toFixed(1)}/10`
-                        : "No data"
-                    })(),
-                  },
-                  {
-                    label: "Not Analyzed",
-                    value: filteredAndSortedCandidates.filter(c => !c.hasAIReport).length,
-                  },
-                ].map((stat, index) => (
-                  <div
-                    key={stat.label}
-                    className="flex justify-between animate-slideIn"
-                    style={{ animationDelay: `${0.5 + index * 0.1}s` }}
-                  >
-                    <span className="text-sm text-gray-600">{stat.label}</span>
-                    <span className="font-semibold text-gray-900">{stat.value}</span>
-                  </div>
-                ))}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Total Applicants</span>
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                    {candidates.length}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Analyzed</span>
+                  <Badge variant="secondary" className="bg-veo-green/20 text-veo-green">
+                    {filteredAndSortedCandidates.filter(c => c.aiScore !== undefined).length}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Pending</span>
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                    {filteredAndSortedCandidates.filter(c => c.aiScore === undefined).length}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">High Scores (8+)</span>
+                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
+                    {filteredAndSortedCandidates.filter(c => c.aiScore && c.aiScore >= 8).length}
+                  </Badge>
+                </div>
               </CardContent>
             </Card>
+          )}
 
-            <Card className="shadow-soft animate-slideUp" style={{ animationDelay: "0.6s" }}>
+          {/* Assessment Criteria */}
+          {job && (
+            <AssessmentCriteriaSidebar
+              jobTitle={job.title}
+              onConfigureClick={() => setShowJobSkillsModal(true)}
+            />
+          )}
+
+          {/* Actions */}
+          {job && (
+            <Card className="shadow-soft animate-slideUp" style={{ animationDelay: "0.5s" }}>
               <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-veo-green" />
-                  Actions
-                </CardTitle>
+                <CardTitle className="text-lg">Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {[
-                  { icon: Download, label: "Export All Applicants" },
-                  { icon: Settings, label: "Edit Job Posting" },
-                ].map((action, index) => (
-                  <Button
-                    key={action.label}
-                    variant="outline"
-                    className="w-full btn-secondary animate-slideIn bg-transparent"
-                    style={{ animationDelay: `${0.7 + index * 0.1}s` }}
-                  >
-                    <action.icon className="h-4 w-4 mr-2" />
-                    {action.label}
-                  </Button>
-                ))}
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start btn-secondary"
+                  onClick={() => {
+                    const csvContent = [
+                      ['Name', 'Email', 'Score', 'Skills'].join(','),
+                      ...filteredAndSortedCandidates.map(c => 
+                        [c.name, c.email, c.aiScore || 'N/A', c.skills.join(';')].join(',')
+                      )
+                    ].join('\n')
+                    
+                    const blob = new Blob([csvContent], { type: 'text/csv' })
+                    const url = window.URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${job.title.replace(/\s+/g, '_')}_candidates.csv`
+                    a.click()
+                    window.URL.revokeObjectURL(url)
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start btn-secondary"
+                  onClick={() => {
+                    if (selectedApplicants.length === 0) {
+                      alert('Please select candidates first')
+                      return
+                    }
+                    alert(`Starting batch analysis for ${selectedApplicants.length} candidates`)
+                  }}
+                >
+                  <Brain className="h-4 w-4 mr-2" />
+                  Batch Analyze Selected
+                </Button>
               </CardContent>
             </Card>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Barem Configuration Modal - PROPERLY CENTERED VERSION */}
-      {showBaremModal && (
+      {/* Job Skills Configuration Modal */}
+      <JobSkillsModal
+        isOpen={showJobSkillsModal}
+        onClose={() => setShowJobSkillsModal(false)}
+        job={job}
+      />
+
+      {/* Analysis Progress Modal */}
+      {isAnalyzing && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div className="fixed inset-4 flex items-center justify-center">
-            <div className="w-full max-w-5xl h-full max-h-[90vh] flex flex-col animate-scaleIn">
-              <Card className="bg-white shadow-2xl border-0 h-full flex flex-col">
-                {/* Header - Fixed */}
-                <CardHeader className="bg-veo-green text-white p-4 flex-shrink-0">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white/20 rounded-lg">
-                        <Brain className="h-6 w-6" />
+            <div className="w-full max-w-md animate-scaleIn">
+              <Card className="bg-white shadow-2xl border-0">
+                <CardContent className="p-6">
+                  <div className="text-center">
+                    <div className="relative mx-auto w-20 h-20 mb-6">
+                      <div className="absolute inset-0 border-4 border-green-600/20 rounded-full"></div>
+                      <div className="absolute inset-0 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                      <Brain className="absolute inset-0 m-auto h-8 w-8 text-green-600 animate-pulse" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">AI Analysis in Progress</h3>
+                    <p className="text-gray-600 mb-6">
+                      Evaluating candidates using your assessment criteria
+                    </p>
+
+                    <div className="max-w-sm mx-auto">
+                      <div className="flex justify-between text-sm text-gray-600 mb-2">
+                        <span>Progress</span>
+                        <span>{analysisProgress}%</span>
                       </div>
-                      <div>
-                        <CardTitle className="text-xl font-bold">AI-Powered Candidate Assessment</CardTitle>
-                        <CardDescription className="text-white/90 text-sm">
-                          Generate intelligent scoring criteria for {selectedApplicants.length} selected candidates
-                        </CardDescription>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="h-full bg-green-600 rounded-full transition-all duration-300"
+                          style={{ width: `${analysisProgress}%` }}
+                        ></div>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowBaremModal(false)}
-                      className="text-white hover:bg-white/20 h-10 w-10 rounded-lg"
-                    >
-                      <X className="h-5 w-5" />
-                    </Button>
                   </div>
-                </CardHeader>
-
-                {/* Content - Scrollable */}
-                <div className="flex-1 min-h-0">
-                  <CardContent className="p-6 h-full overflow-y-auto">
-                    {isAnalyzing ? (
-                      <div className="flex items-center justify-center h-full min-h-[400px]">
-                        <div className="text-center">
-                          <div className="relative mx-auto w-20 h-20 mb-6">
-                            <div className="absolute inset-0 border-4 border-veo-green/20 rounded-full"></div>
-                            <div className="absolute inset-0 border-4 border-veo-green border-t-transparent rounded-full animate-spin"></div>
-                            <Brain className="absolute inset-0 m-auto h-8 w-8 text-veo-green animate-pulse" />
-                          </div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-2">AI Analysis in Progress</h3>
-                          <p className="text-gray-600 mb-6">
-                            Evaluating candidates using your custom assessment criteria
-                          </p>
-
-                          <div className="max-w-sm mx-auto">
-                            <div className="flex justify-between text-sm text-gray-600 mb-2">
-                              <span>Progress</span>
-                              <span>{analysisProgress}%</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div
-                                className="h-full bg-veo-green rounded-full transition-all duration-300"
-                                style={{ width: `${analysisProgress}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : Object.keys(categorizedSkills).length === 0 ? (
-                      <div className="flex items-center justify-center h-full min-h-[400px]">
-                        <div className="text-center max-w-2xl">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 bg-veo-green/10 rounded-full mb-4">
-                            <Brain className="h-4 w-4 text-veo-green" />
-                            <span className="text-sm font-medium text-veo-green">AI-Powered Assessment</span>
-                          </div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-3">Generate Smart Assessment Criteria</h3>
-                          <p className="text-gray-600 mb-6">
-                            Our AI will analyze "<strong>{job?.title}</strong>" requirements to automatically generate
-                            relevant skills and optimal weights for candidate evaluation.
-                          </p>
-
-                          <Button
-                            onClick={extractSkillsFromJob}
-                            disabled={isExtracting}
-                            size="lg"
-                            className="bg-veo-green hover:bg-veo-green/90 text-white px-8 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all"
-                          >
-                            {isExtracting ? (
-                              <>
-                                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2"></div>
-                                Generating Assessment Criteria...
-                              </>
-                            ) : (
-                              <>
-                                <Wand2 className="h-5 w-5 mr-2" />
-                                Generate AI Assessment
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-6">
-                        <div className="text-center mb-4">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 bg-veo-green/10 rounded-full mb-3">
-                            <div className="p-0.5 bg-veo-green rounded-full">
-                              <Check className="h-3 w-3 text-white" />
-                            </div>
-                            <span className="text-sm font-medium text-veo-green">AI Generation Complete!</span>
-                          </div>
-                          <h3 className="text-lg font-bold text-gray-900 mb-1">Review & Adjust Weights</h3>
-                          <p className="text-gray-600 text-sm">
-                            Ajustez les poids par catégorie et pour chaque langue pour "{job?.title}".
-                          </p>
-                        </div>
-
-                        <div className="flex items-center justify-between mb-4 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <div className="p-1 bg-white rounded shadow-sm">
-                              <TrendingUp className="h-4 w-4 text-gray-600" />
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-gray-900 text-sm">Total Weight</h4>
-                              <p className="text-xs text-gray-600">Doit être égal à 100%</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div
-                              className={`text-xl font-bold ${getTotalWeight() === 100 ? "text-veo-green" : "text-red-500"}`}
-                            >
-                              {getTotalWeight()}%
-                            </div>
-                            {getTotalWeight() !== 100 && (
-                              <p className="text-xs text-red-500">
-                                {getTotalWeight() > 100 ? "Réduire de" : "Ajouter"} {Math.abs(100 - getTotalWeight())}%
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2 mb-4">
-                          <Button
-                            onClick={autoDistributeWeights}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-1 text-xs bg-transparent"
-                          >
-                            <Wand2 className="h-3 w-3" />
-                            Auto-Distribute
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              setCategoryWeights({});
-                              setLanguageWeights({});
-                              setCategorizedSkills({});
-                            }}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-1 text-xs"
-                          >
-                            <ArrowLeft className="h-3 w-3" />
-                            Regenerate
-                          </Button>
-                        </div>
-
-                        {/* Category weights sliders */}
-                        <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
-                          {Object.keys(categorizedSkills).filter((cat) => cat !== 'Languages').map((cat) => (
-                            <div key={cat} className="p-3 border border-gray-200 rounded-lg hover:shadow-sm transition-all">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <div className="p-1 bg-veo-green/10 rounded">
-                                    <Brain className="h-3 w-3 text-veo-green" />
-                                  </div>
-                                  <span className="font-medium text-gray-900 text-sm">{cat}</span>
-                                </div>
-                                <div className="text-right">
-                                  <div className="text-sm font-bold text-veo-green">{categoryWeights[cat] || 0}%</div>
-                                </div>
-                              </div>
-                              <Slider
-                                value={[categoryWeights[cat] || 0]}
-                                onValueChange={(value) => updateCategoryWeight(cat, value[0])}
-                                max={100}
-                                step={1}
-                                className="w-full"
-                              />
-                              {/* Show skills in this category */}
-                              <div className="flex flex-wrap gap-2 mt-2">
-                                {categorizedSkills[cat].map((skill: string) => (
-                                  <span key={skill} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                                    {skill}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                          {/* Language weights sliders */}
-                          {categorizedSkills['Languages'] && (
-                            <div className="p-3 border border-gray-200 rounded-lg hover:shadow-sm transition-all">
-                              <div className="font-medium text-gray-900 text-sm mb-2">Languages</div>
-                              {categorizedSkills['Languages'].map((lang: string) => (
-                                <div key={lang} className="mb-2">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-sm text-gray-800">{lang}</span>
-                                    <span className="text-sm font-bold text-veo-green">{languageWeights[lang] || 0}%</span>
-                                  </div>
-                                  <Slider
-                                    value={[languageWeights[lang] || 0]}
-                                    onValueChange={(value) => updateLanguageWeight(lang, value[0])}
-                                    max={100}
-                                    step={1}
-                                    className="w-full"
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </div>
-
-                {/* Footer - Fixed */}
-                {!isAnalyzing && Object.keys(categorizedSkills).length > 0 && (
-                  <div className="border-t bg-gray-50 p-4 flex-shrink-0">
-                    <div className="flex gap-3">
-                      <Button onClick={() => setShowBaremModal(false)} variant="outline" className="flex-1 h-10">
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={async () => {
-                          console.log('🚀 START AI ANALYSIS BUTTON CLICKED!');
-                          console.log('🔍 Testing if console works at all');
-                          console.log('📋 Current barem:', currentBarem);
-                          
-                          // Check if we have a barem already created
-                          if (!currentBarem) {
-                            console.error('❌ No barem available! You must generate assessment criteria first.');
-                            alert('No assessment criteria found. Please generate assessment criteria first.');
-                            return;
-                          }
-                          
-                          setIsAnalyzing(true);
-                          setAnalysisProgress(0);
-                          try {
-                            console.log('✅ Using existing barem for analysis');
-                            console.log('=== USING BAREM FOR ANALYSIS ===');
-                            console.log('Barem JSON:', JSON.stringify(currentBarem, null, 2));
-                            console.log('=== END BAREM FOR ANALYSIS ===');
-
-                            // 3. Gather all selected CVs as blobs and send in one FormData
-                            // IMPORTANT: Make sure your CV files are in public/assets/jobs/<Job Title>/<filename>.pdf
-                            const formData = new FormData();
-                            // Add job info
-                            formData.append('job_title', job.title);
-                            formData.append('job_description', job.description);
-                            formData.append('barem', JSON.stringify(currentBarem));
-                            // Fetch and append all files
-                            let fileCount = 0;
-                            for (let i = 0; i < selectedApplicants.length; i++) {
-                              const candidateId = selectedApplicants[i];
-                              const candidate = candidates.find((c: any) => c.id === candidateId);
-                              if (!candidate) continue;
-                              // Get the CV URL (should be a static asset path)
-                              const cvUrl = getCVUrl(candidate).replace('/api/cv/', '/assets/jobs/');
-                              // Try to fetch the file as blob
-                              try {
-                                const response = await fetch(cvUrl);
-                                if (!response.ok) {
-                                  console.warn('CV file not found:', cvUrl);
-                                  continue;
-                                }
-                                const blob = await response.blob();
-                                // Use candidate name or id for filename
-                                const filename = candidate.name.replace(/\s+/g, '_').toLowerCase() + '.pdf';
-                                formData.append('files', blob, filename);
-                                fileCount++;
-                              } catch (e) {
-                                console.error('Error fetching CV file:', cvUrl, e);
-                              }
-                              setAnalysisProgress(Math.round(((i + 1) / selectedApplicants.length) * 80));
-                            }
-                            if (fileCount === 0) {
-                              alert('No CV files found. Make sure your CVs are in public/assets/jobs/<Job Title>/<filename>.pdf');
-                              setIsAnalyzing(false);
-                              return;
-                            }
-                            // Only send if at least one file
-                            console.log('📤 PREPARING TO SEND ANALYSIS REQUEST:');
-                            console.log('- Job title:', job.title);
-                            console.log('- Job description length:', job.description.length);
-                            console.log('- Barem keys count:', Object.keys(currentBarem).length);
-                            console.log('- Files count:', fileCount);
-                            console.log('- FormData contents:');
-                            console.log('  ✅ job_title: SET');
-                            console.log('  ✅ job_description: SET');
-                            console.log('  ✅ barem: SET (JSON stringified)');
-                            console.log('  ✅ files: SET (' + fileCount + ' files)');
-                            
-                            console.log('Sending analysis request to /api/analyze with', fileCount, 'files');
-                            const analyzeResponse = await fetch('/api/analyze', {
-                              method: 'POST',
-                              body: formData,
-                            });
-                            
-                            console.log('📥 ANALYSIS RESPONSE:');
-                            console.log('- Response status:', analyzeResponse.status);
-                            console.log('- Response ok:', analyzeResponse.ok);
-                            
-                            if (!analyzeResponse.ok) {
-                              console.error('Analysis API failed:', analyzeResponse.status, analyzeResponse.statusText);
-                              const errorText = await analyzeResponse.text();
-                              console.error('Error response body:', errorText);
-                            } else {
-                              const analyzeResult = await analyzeResponse.json();
-                              console.log('✅ Analysis completed successfully');
-                              console.log('Analysis result:', analyzeResult);
-                            }
-                            setAnalysisProgress(100);
-                          } catch (err) {
-                            console.error('Error during AI analysis:', err);
-                          } finally {
-                            setIsAnalyzing(false);
-                            setShowBaremModal(false);
-                          }
-                        }}
-                        className="flex-1 h-10 bg-veo-green hover:bg-veo-green/90 text-white"
-                        disabled={getTotalWeight() !== 100}
-                      >
-                        <Play className="h-4 w-4 mr-2" />
-                        Start AI Analysis
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                </CardContent>
               </Card>
             </div>
           </div>
