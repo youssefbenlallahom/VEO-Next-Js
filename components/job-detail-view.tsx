@@ -736,7 +736,13 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                                   ? "70-89%"
                                   : option === "low"
                                     ? "Below 70%"
-                                    : option}
+                                    : option === "aiScore"
+                                      ? "Score"
+                                      : option === "appliedDate"
+                                        ? "Applied Date"
+                                        : option === "name"
+                                          ? "Name"
+                                          : option}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -855,10 +861,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                               size="sm" 
                               onClick={() => toggleAiReport(applicant)}
                               className="btn-secondary bg-transparent"
-                              title="View AI Report"
+                              title="View Report"
                             >
                               <FileText className="h-3 w-3 mr-1" />
-                              AI Report
+                              Report
                             </Button>
                           ) : (
                             <Button 
