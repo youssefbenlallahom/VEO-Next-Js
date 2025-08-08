@@ -238,8 +238,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
         const candidate = candidates.find((c: any) => c.id === candidateId)
         if (!candidate) continue
         
-        // Get the CV URL (should be a static asset path)
-        const cvUrl = getCVUrl(candidate).replace('/api/cv/', '/assets/jobs/')
+        // Get the CV URL using the API route
+        const cvUrl = getCVUrl(candidate)
         
         try {
           const response = await fetch(cvUrl)
@@ -310,8 +310,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
         const candidate = candidates.find((c: any) => c.id === candidateId);
         if (!candidate) continue;
         
-        // Get the CV URL (should be a static asset path)
-        const cvUrl = getCVUrl(candidate).replace('/api/cv/', '/assets/jobs/');
+        // Get the CV URL using the API route
+        const cvUrl = getCVUrl(candidate);
         
         // Try to fetch the file as blob
         try {
@@ -455,6 +455,9 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       "Jennifer Davis": "mohamed-gharghari-el-ayech-cv.pdf",
       "John Smith": "rim-jamli-cv.pdf",
       "Linda Wang": "safa-ochi-cv.pdf",
+      // Senior BI Developer candidates
+      "Arwa Lassoued": "omri-amal-cv.pdf",
+      "Ourighmi Saif": "ourighmi-saif-cv.pdf",
     };
     
     // Use mapping if available, otherwise try to convert name
