@@ -665,11 +665,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                     Applicants ({filteredAndSortedCandidates.length})
                   </CardTitle>
                   <div className="flex items-center gap-3">
-                    {selectedApplicants.length > 0 && (
-                      <Badge variant="outline" className="animate-scaleIn">
-                        {selectedApplicants.length} selected
-                      </Badge>
-                    )}
                     <Button
                       onClick={() => setShowJobSkillsModal(true)}
                       variant="outline"
