@@ -37,6 +37,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AIReportModal } from "@/components/ai-report-modal"
 import { useAllCandidates } from "@/hooks/use-backend-api"
+import useSWR from 'swr';
+
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 // Simple function to extract country from location
 const getCountryFromLocation = (location: string): string => {
@@ -124,6 +127,23 @@ export function CandidatesOverview() {
   const [viewingCV, setViewingCV] = useState<{candidateId: number, cvUrl: string} | null>(null)
   const [refreshingCandidates, setRefreshingCandidates] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [expandedSkills, setExpandedSkills] = useState<Record<number, boolean>>({})
+  // For skill details modal
+  const [selectedSkill, setSelectedSkill] = useState<{candidateName: string, skillKey: string} | null>(null);
+
+  // Fetch extracted skills from backend
+  const { data: extractedSkillsData, error: extractedSkillsError } = useSWR('/api/display-skills', fetcher);
+  // Map: candidate name (or cv_filename) -> skill keys
+  const candidateSkillsMap = useMemo(() => {
+    if (!extractedSkillsData || !extractedSkillsData.candidates) return {};
+    const map: Record<string, string[]> = {};
+    extractedSkillsData.candidates.forEach((c: any) => {
+      if (c.skills && typeof c.skills === 'object' && !Array.isArray(c.skills)) {
+        map[c.candidate_name] = Object.keys(c.skills);
+      }
+    });
+    return map;
+  }, [extractedSkillsData]);
 
   // Helper to fetch PDF from URL as File
   async function fetchPdfAsFile(url: string, filename: string): Promise<File> {
@@ -508,177 +528,154 @@ export function CandidatesOverview() {
           const aiReport = generateAIReport(candidate)
           const isExpanded = expandedCandidate === candidate.id
 
+          // Get extracted skill keys for this candidate
+          const extractedSkillKeys = candidateSkillsMap[candidate.name] || [];
+
           return (
             <Card
               key={candidate.id}
-              className={`group hover:shadow-xl transition-all duration-300 border-0 shadow-md hover:-translate-y-1 animate-slideUp ${
-                isExpanded ? "ring-2 ring-veo-green/30" : ""
-              }`}
-              style={{ animationDelay: `${index * 0.05}s` }}
+              className={`group hover:shadow-xl transition-all duration-300 border-0 shadow-md hover:-translate-y-1 animate-slideUp h-full flex flex-col` + (isExpanded ? " ring-2 ring-veo-green/30" : "")}
+              style={{ animationDelay: `${index * 0.05}s`, minHeight: 350, maxHeight: 400 }} // reduced minHeight and set maxHeight
             >
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <Avatar className="h-12 w-12 ring-2 ring-gray-100 flex-shrink-0">
-                      <AvatarImage src={candidate.avatar || "/placeholder.svg"} alt={candidate.name} />
-                      <AvatarFallback className="bg-veo-green/10 text-veo-green font-semibold">
-                        {candidate.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-semibold text-gray-900 text-lg truncate">{candidate.name}</h3>
-                      <p className="text-sm text-gray-600 truncate">{candidate.email}</p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Globe className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                        <span className="text-xs text-gray-500 truncate">
-                          {getCountryFromLocation(candidate.location)}
-                        </span>
+              <CardContent className="p-6 flex flex-col flex-1">
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <Avatar className="h-12 w-12 ring-2 ring-gray-100 flex-shrink-0">
+                        <AvatarImage src={candidate.avatar || "/placeholder.svg"} alt={candidate.name} />
+                        <AvatarFallback className="bg-veo-green/10 text-veo-green font-semibold">
+                          {candidate.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-gray-900 text-lg truncate">{candidate.name}</h3>
+                        <p className="text-sm text-gray-600 truncate">{candidate.email}</p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <Globe className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                          <span className="text-xs text-gray-500 truncate">
+                            {getCountryFromLocation(candidate.location)}
+                          </span>
+                        </div>
                       </div>
                     </div>
+                    <div className="flex flex-col items-end gap-2 flex-shrink-0 ml-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem>
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            Send Message
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => viewCV(candidate)}>
+                            <Eye className="h-4 w-4 mr-2 text-blue-600" />
+                            <span className="text-blue-600">View Resume</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2 flex-shrink-0 ml-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem>
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          Send Message
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => viewCV(candidate)}>
-                          <Eye className="h-4 w-4 mr-2 text-blue-600" />
-                          <span className="text-blue-600">View Resume</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+
+                  <div className="space-y-3">
+                    <div className="mb-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1 bg-veo-green/10 rounded flex-shrink-0">
+                          <Users className="h-3 w-3 text-veo-green" />
+                        </div>
+                        <span className="font-medium text-gray-900 text-sm truncate">{candidate.position}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 text-xs text-gray-600 mb-3">
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{candidate.location.split(",")[0]}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Phone className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{candidate.phone}</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-medium text-gray-700 mb-2">Key Skills</p>
+                      <div className="flex flex-wrap gap-1">
+                        {(expandedSkills[candidate.id]
+                          ? extractedSkillKeys
+                          : extractedSkillKeys.slice(0, 3)
+                        ).map((skill, idx) => (
+                          <Badge
+                            key={idx}
+                            variant="secondary"
+                            className="text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer"
+                            onClick={() => setSelectedSkill({ candidateName: candidate.name, skillKey: skill })}
+                          >
+                            {skill}
+                          </Badge>
+                        ))}
+                        {extractedSkillKeys.length > 3 && !expandedSkills[candidate.id] && (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs bg-veo-green/10 text-veo-green cursor-pointer"
+                            onClick={() => setExpandedSkills({ ...expandedSkills, [candidate.id]: true })}
+                          >
+                            +{extractedSkillKeys.length - 3}
+                          </Badge>
+                        )}
+                        {extractedSkillKeys.length > 3 && expandedSkills[candidate.id] && (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs bg-gray-200 text-gray-700 cursor-pointer"
+                            onClick={() => setExpandedSkills({ ...expandedSkills, [candidate.id]: false })}
+                          >
+                            Show less
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                <div className="space-y-3">
-                  <div className="mb-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="p-1 bg-veo-green/10 rounded flex-shrink-0">
-                        <Users className="h-3 w-3 text-veo-green" />
-                      </div>
-                      <span className="font-medium text-gray-900 text-sm truncate">{candidate.position}</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-2 text-xs text-gray-600 mb-3">
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate">{candidate.location.split(",")[0]}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Phone className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate">{candidate.phone}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-medium text-gray-700 mb-2">Key Skills</p>
-                    <div className="flex flex-wrap gap-1">
-                      {candidate.skills.slice(0, 3).map((skill, index) => (
-                        <Badge
-                          key={index}
-                          variant="secondary"
-                          className="text-xs bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        >
-                          {skill}
-                        </Badge>
-                      ))}
-                      {candidate.skills.length > 3 && (
-                        <Badge variant="secondary" className="text-xs bg-veo-green/10 text-veo-green">
-                          +{candidate.skills.length - 3}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      size="sm"
-                      onClick={() => toggleCandidateExpansion(candidate.id)}
-                      className="flex-1 bg-veo-green hover:bg-veo-green/90 text-white shadow-sm hover:shadow-md transition-all"
-                      disabled={!candidate.hasAIReport}
-                    >
-                      <Brain className="h-3 w-3 mr-2" />
-                      {candidate.hasAIReport ? 'View Score' : 'Not Analyzed'}
-                      {candidate.hasAIReport && (isExpanded ? <ChevronUp className="h-3 w-3 ml-2" /> : <ChevronDown className="h-3 w-3 ml-2" />)}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => viewCV(candidate)}
-                      className="px-3 hover:bg-blue-50 border-blue-200 text-blue-600"
-                      title="View Resume"
-                    >
-                      <Eye className="h-3 w-3 mr-1" />
-                      CV
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => toggleAiReport(candidate)}
-                      className="px-3 hover:bg-gray-50 border-gray-200"
-                      title={candidate.hasAIReport ? "View AI Report" : "No AI analysis available"}
-                      disabled={!candidate.hasAIReport}
-                    >
-                      <FileText className="h-3 w-3" />
-                    </Button>
-                  </div>
-
-                  {/* Expanded Score Section */}
-                  {isExpanded && candidate.hasAIReport && (
-                    <div className="mt-4 pt-4 border-t border-gray-100 space-y-4 animate-slideDown">
-                      <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <h4 className="text-sm font-bold text-blue-900 mb-1">Job Applied</h4>
-                            <p className="text-sm text-blue-800">{candidate.position}</p>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-blue-900">{candidate.aiScore}/10</div>
-                            <div className="text-xs font-medium text-blue-700">Score</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Not Analyzed Section */}
-                  {isExpanded && !candidate.hasAIReport && (
-                    <div className="mt-4 pt-4 border-t border-gray-100 space-y-4 animate-slideDown">
-                      <div className="p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border border-gray-200">
-                        <div className="text-center">
-                          <h4 className="text-sm font-bold text-gray-700 mb-2">Not Analyzed</h4>
-                          <p className="text-xs text-gray-600 mb-3">This candidate has not been analyzed yet.</p>
-                          <Button 
-                            size="sm" 
-                            className="bg-veo-green hover:bg-veo-green/90 text-white"
-                            onClick={() => {
-                              // Here you could trigger analysis or redirect to analysis page
-                              alert('Analysis feature coming soon!')
-                            }}
-                          >
-                            <Brain className="h-3 w-3 mr-1" />
-                            Analyze Candidate
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
+                <div className="flex gap-2 pt-2 items-end">
+                  <Button
+                    size="sm"
+                    onClick={() => toggleCandidateExpansion(candidate.id)}
+                    className="flex-1 bg-veo-green hover:bg-veo-green/90 text-white shadow-sm hover:shadow-md transition-all"
+                    disabled={!candidate.hasAIReport}
+                  >
+                    <Brain className="h-3 w-3 mr-2" />
+                    {candidate.hasAIReport ? 'View Score' : 'Not Analyzed'}
+                    {candidate.hasAIReport && (isExpanded ? <ChevronUp className="h-3 w-3 ml-2" /> : <ChevronDown className="h-3 w-3 ml-2" />)}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => viewCV(candidate)}
+                    className="px-3 hover:bg-blue-50 border-blue-200 text-blue-600"
+                    title="View Resume"
+                  >
+                    <Eye className="h-3 w-3 mr-1" />
+                    CV
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => toggleAiReport(candidate)}
+                    className="px-3 hover:bg-gray-50 border-gray-200"
+                    title={candidate.hasAIReport ? "View AI Report" : "No AI analysis available"}
+                    disabled={!candidate.hasAIReport}
+                  >
+                    <FileText className="h-3 w-3" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -698,7 +695,7 @@ export function CandidatesOverview() {
             console.log('Starting skill extraction for', paginatedCandidates.length, 'candidates');
             try {
               // For each candidate on the current page, analyze their CV
-              await Promise.all(paginatedCandidates.map(async (candidate) => {
+              await Promise.all(candidates.map(async (candidate) => {
                 try {
                   // Get CV URL
                   const cvUrl = getCVUrl(candidate);
@@ -904,6 +901,26 @@ export function CandidatesOverview() {
     onClose={() => setAiReportCandidate(null)}
     candidate={aiReportCandidate}
   />
+
+  {/* Skill Details Modal */}
+  {selectedSkill && (
+    <Dialog open={!!selectedSkill} onOpenChange={() => setSelectedSkill(null)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {selectedSkill.skillKey} for {selectedSkill.candidateName}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 mt-2">
+          {(extractedSkillsData?.candidates?.find((c: any) => c.candidate_name === selectedSkill.candidateName)?.skills?.[selectedSkill.skillKey] || []).map((val: string, idx: number) => (
+            <div key={idx} className="px-3 py-2 bg-gray-100 rounded text-gray-800 text-sm">
+              {val}
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )}
     </div>
   )
 }
