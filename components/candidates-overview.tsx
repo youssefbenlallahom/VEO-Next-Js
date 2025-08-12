@@ -122,6 +122,15 @@ export function CandidatesOverview() {
   const [expandedCandidate, setExpandedCandidate] = useState<number | null>(null)
   const [aiReportCandidate, setAiReportCandidate] = useState<any | null>(null)
   const [viewingCV, setViewingCV] = useState<{candidateId: number, cvUrl: string} | null>(null)
+  const [refreshingCandidates, setRefreshingCandidates] = useState(false)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
+
+  // Helper to fetch PDF from URL as File
+  async function fetchPdfAsFile(url: string, filename: string): Promise<File> {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new File([blob], filename, { type: 'application/pdf' });
+  }
 
   // Filter and sort candidates - moved before early returns
   const filteredAndSortedCandidates = useMemo(() => {
@@ -677,6 +686,78 @@ export function CandidatesOverview() {
         })}
       </div>
 
+      {/* Refresh Button */}
+      <div className="flex justify-end mb-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={async () => {
+            console.log('Extract skills button clicked');
+            setRefreshingCandidates(true);
+            setRefreshError && setRefreshError(null);
+            console.log('Starting skill extraction for', paginatedCandidates.length, 'candidates');
+            try {
+              // For each candidate on the current page, analyze their CV
+              await Promise.all(paginatedCandidates.map(async (candidate) => {
+                try {
+                  // Get CV URL
+                  const cvUrl = getCVUrl(candidate);
+                  console.log(`Processing CV for ${candidate.name}: ${cvUrl}`);
+                  // Fetch PDF as File
+                  const file = await fetchPdfAsFile(cvUrl, `${candidate.name}.pdf`);
+                  const formData = new FormData();
+                  formData.append('file', file);
+                  // Call the API
+                  console.log(`Sending CV to API: ${candidate.name}`);
+                  console.log('FormData contents:', Array.from(formData.entries()));
+                  
+                  let response;
+                  try {
+                    response = await fetch('/api/skills-from-cv', {
+                      method: 'POST',
+                      body: formData,
+                    });
+                    console.log(`API response status for ${candidate.name}:`, response.status);
+                    if (!response.ok) {
+                      const errorText = await response.text();
+                      console.error(`API error for ${candidate.name}:`, errorText);
+                      throw new Error(`API error: ${response.status} ${response.statusText}`);
+                    }
+                  } catch (error) {
+                    console.error(`Failed to process ${candidate.name}:`, error);
+                    throw error;
+                  }
+                  
+                  const data = await response.json();
+                  console.log(`API response for ${candidate.name}:`, data);
+                  console.log(`API Response for ${candidate.name}:`, data);
+                  // Extract skill categories
+                  const skillCategories = data.hard_skills ? Object.keys(data.hard_skills) : [];
+                  console.log(`Extracted skills for ${candidate.name}:`, skillCategories);
+                  
+                  // Update candidate's skills directly (this will be reflected after refetch)
+                  candidate.skills = skillCategories;
+                  console.log(`Updated candidate ${candidate.name} with skills:`, skillCategories);
+                } catch (err) {
+                  // On error, clear skills for this candidate
+                  candidate.skills = [];
+                }
+              }));
+              
+              // Refresh the candidates data to reflect the changes
+              await refetch();
+            } catch (err: any) {
+              setRefreshError && setRefreshError('Failed to extract skills for some candidates.');
+            } finally {
+              setRefreshingCandidates(false);
+            }
+          }}
+          disabled={refreshingCandidates}
+          className="flex items-center gap-2"
+        >
+          {refreshingCandidates ? 'Extracting skills...' : 'Extract skills'}
+        </Button>
+      </div>
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
