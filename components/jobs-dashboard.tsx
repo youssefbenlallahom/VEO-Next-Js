@@ -42,6 +42,9 @@ export function JobsDashboard() {
   const [countryFilter, setCountryFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState("postedDate")
+  const [extracting, setExtracting] = useState(false)
+  const [extractError, setExtractError] = useState<string | null>(null)
+  const [extractResult, setExtractResult] = useState<any>(null)
 
   // Filter and sort jobs
   const filteredAndSortedJobs = useMemo(() => {
@@ -288,6 +291,47 @@ export function JobsDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Extract Skills Button */}
+      <div className="flex justify-end mb-4">
+        <Button
+          className="bg-veo-green hover:bg-veo-green/90 text-white"
+          disabled={extracting}
+          onClick={async () => {
+            setExtracting(true)
+            setExtractError(null)
+            setExtractResult(null)
+            try {
+              const results: any[] = []
+              for (const job of filteredAndSortedJobs) {
+                const res = await fetch('/api/skills-from-cv', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ job_title: job.title, job_description: job.description }),
+                })
+                const data = await res.json()
+                results.push({ job: job.title, skills: data })
+              }
+              setExtractResult(results)
+            } catch (err: any) {
+              setExtractError('Failed to extract skills for some jobs.')
+            } finally {
+              setExtracting(false)
+            }
+          }}
+        >
+          {extracting ? 'Extracting Skills...' : 'Extract Skills for All Jobs'}
+        </Button>
+      </div>
+
+      {/* Optionally show results or error */}
+      {extractError && <div className="text-red-600 mb-2">{extractError}</div>}
+      {extractResult && (
+        <div className="mb-4 p-4 bg-gray-50 border rounded">
+          <h4 className="font-bold mb-2">Extracted Skills Results:</h4>
+          <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(extractResult, null, 2)}</pre>
+        </div>
+      )}
 
       {/* Job Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
