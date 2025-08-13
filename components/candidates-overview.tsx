@@ -469,7 +469,7 @@ export function CandidatesOverview() {
             </div>
           </div>
 
-          {/* Results summary */}
+      {/* Results summary */}
           <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-100">
             <div className="text-sm text-gray-600">
               Showing {paginatedCandidates.length} of {filteredStats.totalCandidates} candidates
@@ -497,6 +497,78 @@ export function CandidatesOverview() {
                 <RotateCcw className="h-4 w-4 mr-1" />
                 {candidatesLoading ? 'Loading...' : 'Refresh'}
               </Button>
+      {/* extract skills Button */}
+        <div className="flex justify-end mb-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              console.log('Extract skills button clicked');
+              setRefreshingCandidates(true);
+              setRefreshError && setRefreshError(null);
+              console.log('Starting skill extraction for', paginatedCandidates.length, 'candidates');
+              try {
+                // For each candidate on the current page, analyze their CV
+                await Promise.all(candidates.map(async (candidate) => {
+                  try {
+                    // Get CV URL
+                    const cvUrl = getCVUrl(candidate);
+                    console.log(`Processing CV for ${candidate.name}: ${cvUrl}`);
+                    // Fetch PDF as File
+                    const file = await fetchPdfAsFile(cvUrl, `${candidate.name}.pdf`);
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    // Call the API
+                    console.log(`Sending CV to API: ${candidate.name}`);
+                    console.log('FormData contents:', Array.from(formData.entries()));
+                    
+                    let response;
+                    try {
+                      response = await fetch('/api/skills-from-cv', {
+                        method: 'POST',
+                        body: formData,
+                      });
+                      console.log(`API response status for ${candidate.name}:`, response.status);
+                      if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`API error for ${candidate.name}:`, errorText);
+                        throw new Error(`API error: ${response.status} ${response.statusText}`);
+                      }
+                    } catch (error) {
+                      console.error(`Failed to process ${candidate.name}:`, error);
+                      throw error;
+                    }
+                    
+                    const data = await response.json();
+                    console.log(`API response for ${candidate.name}:`, data);
+                    console.log(`API Response for ${candidate.name}:`, data);
+                    // Extract skill categories
+                    const skillCategories = data.hard_skills ? Object.keys(data.hard_skills) : [];
+                    console.log(`Extracted skills for ${candidate.name}:`, skillCategories);
+                    
+                    // Update candidate's skills directly (this will be reflected after refetch)
+                    candidate.skills = skillCategories;
+                    console.log(`Updated candidate ${candidate.name} with skills:`, skillCategories);
+                  } catch (err) {
+                    // On error, clear skills for this candidate
+                    candidate.skills = [];
+                  }
+                }));
+                
+                // Refresh the candidates data to reflect the changes
+                await refetch();
+              } catch (err: any) {
+                setRefreshError && setRefreshError('Failed to extract skills for some candidates.');
+              } finally {
+                setRefreshingCandidates(false);
+              }
+            }}
+            disabled={refreshingCandidates}
+            className="flex items-center gap-2"
+          >
+            {refreshingCandidates ? 'Extracting skills...' : 'Extract skills'}
+          </Button>
+        </div>
 
               {(searchTerm ||
                 jobFilter !== "all" ||
@@ -683,78 +755,7 @@ export function CandidatesOverview() {
         })}
       </div>
 
-      {/* Refresh Button */}
-      <div className="flex justify-end mb-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={async () => {
-            console.log('Extract skills button clicked');
-            setRefreshingCandidates(true);
-            setRefreshError && setRefreshError(null);
-            console.log('Starting skill extraction for', paginatedCandidates.length, 'candidates');
-            try {
-              // For each candidate on the current page, analyze their CV
-              await Promise.all(candidates.map(async (candidate) => {
-                try {
-                  // Get CV URL
-                  const cvUrl = getCVUrl(candidate);
-                  console.log(`Processing CV for ${candidate.name}: ${cvUrl}`);
-                  // Fetch PDF as File
-                  const file = await fetchPdfAsFile(cvUrl, `${candidate.name}.pdf`);
-                  const formData = new FormData();
-                  formData.append('file', file);
-                  // Call the API
-                  console.log(`Sending CV to API: ${candidate.name}`);
-                  console.log('FormData contents:', Array.from(formData.entries()));
-                  
-                  let response;
-                  try {
-                    response = await fetch('/api/skills-from-cv', {
-                      method: 'POST',
-                      body: formData,
-                    });
-                    console.log(`API response status for ${candidate.name}:`, response.status);
-                    if (!response.ok) {
-                      const errorText = await response.text();
-                      console.error(`API error for ${candidate.name}:`, errorText);
-                      throw new Error(`API error: ${response.status} ${response.statusText}`);
-                    }
-                  } catch (error) {
-                    console.error(`Failed to process ${candidate.name}:`, error);
-                    throw error;
-                  }
-                  
-                  const data = await response.json();
-                  console.log(`API response for ${candidate.name}:`, data);
-                  console.log(`API Response for ${candidate.name}:`, data);
-                  // Extract skill categories
-                  const skillCategories = data.hard_skills ? Object.keys(data.hard_skills) : [];
-                  console.log(`Extracted skills for ${candidate.name}:`, skillCategories);
-                  
-                  // Update candidate's skills directly (this will be reflected after refetch)
-                  candidate.skills = skillCategories;
-                  console.log(`Updated candidate ${candidate.name} with skills:`, skillCategories);
-                } catch (err) {
-                  // On error, clear skills for this candidate
-                  candidate.skills = [];
-                }
-              }));
-              
-              // Refresh the candidates data to reflect the changes
-              await refetch();
-            } catch (err: any) {
-              setRefreshError && setRefreshError('Failed to extract skills for some candidates.');
-            } finally {
-              setRefreshingCandidates(false);
-            }
-          }}
-          disabled={refreshingCandidates}
-          className="flex items-center gap-2"
-        >
-          {refreshingCandidates ? 'Extracting skills...' : 'Extract skills'}
-        </Button>
-      </div>
+      
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">

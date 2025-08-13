@@ -224,7 +224,7 @@ export function JobsDashboard() {
                 />
               </div>
             </div>
-
+            
             <div className="flex gap-3 flex-wrap">
               {[
                 {
@@ -264,6 +264,7 @@ export function JobsDashboard() {
                 </Select>
               ))}
             </div>
+            
           </div>
 
           {/* Results summary */}
@@ -271,31 +272,12 @@ export function JobsDashboard() {
             <div className="text-sm text-gray-600">
               Showing {paginatedJobs.length} of {filteredAndSortedJobs.length} jobs
             </div>
-
-            {(searchTerm || statusFilter !== "all" || departmentFilter !== "all" || countryFilter !== "all") && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSearchTerm("")
-                  setStatusFilter("all")
-                  setDepartmentFilter("all")
-                  setCountryFilter("all")
-                  setCurrentPage(1)
-                }}
-                className="btn-secondary"
-              >
-                Clear Filters
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Extract Skills Button */}
+            {/* Extract Skills Button */}
       <div className="flex justify-end mb-4">
         <Button
-          className="bg-veo-green hover:bg-veo-green/90 text-white"
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2"
           disabled={extracting}
           onClick={async () => {
             setExtracting(true)
@@ -320,18 +302,32 @@ export function JobsDashboard() {
             }
           }}
         >
-          {extracting ? 'Extracting Skills...' : 'Extract Skills for All Jobs'}
+          {extracting ? 'Extracting skills...' : 'Extract skills for all jobs'}
         </Button>
       </div>
 
-      {/* Optionally show results or error */}
-      {extractError && <div className="text-red-600 mb-2">{extractError}</div>}
-      {extractResult && (
-        <div className="mb-4 p-4 bg-gray-50 border rounded">
-          <h4 className="font-bold mb-2">Extracted Skills Results:</h4>
-          <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(extractResult, null, 2)}</pre>
-        </div>
-      )}
+            {(searchTerm || statusFilter !== "all" || departmentFilter !== "all" || countryFilter !== "all") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSearchTerm("")
+                  setStatusFilter("all")
+                  setDepartmentFilter("all")
+                  setCountryFilter("all")
+                  setCurrentPage(1)
+                }}
+                className="btn-secondary"
+              >
+                Clear Filters
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      
+
 
       {/* Job Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
