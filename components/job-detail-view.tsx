@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import dynamic from 'next/dynamic'
 import Link from "next/link"
 import { useJobWithCandidates } from "@/hooks/use-data"
@@ -44,6 +44,7 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
+  Heart,
 } from "lucide-react"
 
 // TypeScript type for normalized job description
@@ -106,30 +107,118 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [sortBy, setSortBy] = useState("aiScore")
   const [aiReportCandidate, setAiReportCandidate] = useState<any | null>(null)
   const [viewingCV, setViewingCV] = useState<{candidateId: number, cvUrl: string} | null>(null)
+  // Favorites
+  const [favoriteIds, setFavoriteIds] = useState<number[]>([])
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
+  // Extracted skills from backend
+  const [extractedSkillsMap, setExtractedSkillsMap] = useState<Record<string, string[]>>({})
+  const [extractedSkillsFullMap, setExtractedSkillsFullMap] = useState<Record<string, Record<string, string[]>>>({})
+  // Skill details dialog state
+  const [selectedSkill, setSelectedSkill] = useState<{candidateName: string, skillKey: string} | null>(null)
+
+  // Load Favorites from localStorage per job
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`job-favorites:${jobId}`)
+      if (saved) setFavoriteIds(JSON.parse(saved))
+    } catch {}
+  }, [jobId])
+
+  // Persist Favorites
+  useEffect(() => {
+    try {
+      localStorage.setItem(`job-favorites:${jobId}`, JSON.stringify(favoriteIds))
+    } catch {}
+  }, [favoriteIds, jobId])
+
+  const toggleFavorite = (id: number) => {
+    setFavoriteIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  // Fetch extracted skills from backend (like All Candidates page)
+  useEffect(() => {
+    let active = true
+    const fetchSkills = async () => {
+      try {
+        const res = await fetch('/api/display-skills')
+        if (!res.ok) return
+        const data = await res.json()
+        const map: Record<string, string[]> = {}
+        const full: Record<string, Record<string, string[]>> = {}
+        if (data?.candidates) {
+          data.candidates.forEach((c: any) => {
+            if (c?.candidate_name && c?.skills && typeof c.skills === 'object' && !Array.isArray(c.skills)) {
+              map[c.candidate_name] = Object.keys(c.skills)
+              full[c.candidate_name] = c.skills as Record<string, string[]>
+            }
+          })
+        }
+        if (active) {
+          setExtractedSkillsMap(map)
+          setExtractedSkillsFullMap(full)
+        }
+      } catch {
+        // silent fail
+      }
+    }
+    fetchSkills()
+    return () => { active = false }
+  }, [])
+
+  // Build skills from score details
+  const extractSkillsFromScoreDetails = (scoreDetails: any): string[] => {
+    if (!scoreDetails) return []
+    const src = scoreDetails.skills_breakdown || scoreDetails.hard_skills || scoreDetails.top_skills || scoreDetails.skills
+    if (!src) return []
+    let skills: string[] = []
+    if (Array.isArray(src)) {
+      skills = src
+        .map((item: any) => {
+          if (typeof item === 'string') return item
+          if (typeof item === 'object' && item) return item.skill || item.name || item.title || ''
+          return ''
+        })
+        .filter(Boolean)
+    } else if (typeof src === 'object') {
+      skills = Object.keys(src)
+    }
+    return Array.from(new Set(skills.map(s => String(s).trim()).filter(Boolean)))
+  }
 
   // Filter and sort candidates with real backend data
   const filteredAndSortedCandidates = useMemo(() => {
     if (!candidates) return []
 
-    // Merge candidates with their AI reports from backend
-    const candidatesWithReports = candidates.map(candidate => 
-      mergeCandidateWithReport(candidate, candidateReports)
-    )
+    // Merge candidates with their AI reports and derive display skills
+    const candidatesWithReports = candidates.map(candidate => {
+      const merged: any = mergeCandidateWithReport(candidate, candidateReports)
+      const extracted = extractedSkillsMap[merged.name] || []
+      const reportSkills = extractSkillsFromScoreDetails(merged.scoreDetails)
+      const uiSkills = extracted.length ? extracted : (reportSkills.length ? reportSkills : merged.skills)
+      return { ...merged, uiSkills }
+    })
 
     const filtered = candidatesWithReports.filter((candidate) => {
+      const skillsArr: string[] = (candidate as any).uiSkills || candidate.skills || []
       const matchesSearch =
         candidate.name.toLowerCase().includes(candidateSearch.toLowerCase()) ||
         candidate.email.toLowerCase().includes(candidateSearch.toLowerCase()) ||
-        candidate.skills.some((skill: string) => skill.toLowerCase().includes(candidateSearch.toLowerCase()))
+        skillsArr.some((skill: string) => skill.toLowerCase().includes(candidateSearch.toLowerCase()))
 
-      return matchesSearch
+      const matchesFavorite = !favoritesOnly || favoriteIds.includes(candidate.id)
+      return matchesSearch && matchesFavorite
     })
 
     // Sort candidates
     filtered.sort((a, b) => {
       switch (sortBy) {
         case "aiScore":
-          return b.aiScore - a.aiScore
+          return (b.aiScore ?? -Infinity) - (a.aiScore ?? -Infinity)
+        case "favorites": {
+          const favA = favoriteIds.includes(a.id) ? 1 : 0
+          const favB = favoriteIds.includes(b.id) ? 1 : 0
+          return favB - favA || ((b.aiScore ?? -Infinity) - (a.aiScore ?? -Infinity))
+        }
         case "name":
           return a.name.localeCompare(b.name)
         case "appliedDate":
@@ -140,7 +229,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     })
 
     return filtered
-  }, [candidates, candidateReports, candidateSearch, sortBy])
+  }, [candidates, candidateReports, extractedSkillsMap, candidateSearch, sortBy, favoritesOnly, favoriteIds])
 
   // Pagination for candidates
   const totalPages = Math.ceil(filteredAndSortedCandidates.length / CANDIDATES_PER_PAGE)
@@ -708,12 +797,12 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                     </div>
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 items-center">
                     {[
                       {
                         value: sortBy,
                         onChange: setSortBy,
-                        options: ["aiScore", "name", "appliedDate"],
+                        options: ["aiScore", "name", "appliedDate", "favorites"],
                         placeholder: "Sort",
                         width: "w-32",
                       },
@@ -738,6 +827,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                                       ? "Score"
                                       : option === "appliedDate"
                                         ? "Applied Date"
+                                        : option === "favorites"
+                                          ? "Favorites First"
                                         : option === "name"
                                           ? "Name"
                                           : option}
@@ -746,6 +837,18 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                         </SelectContent>
                       </Select>
                     ))}
+
+                    {/* Favorites only toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setFavoritesOnly(v => !v)}
+                      className={`flex items-center gap-2 px-3 h-10 rounded-md border transition-all duration-200 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-veo-green/30 ${favoritesOnly ? 'bg-pink-50 text-pink-600 border-pink-200' : 'bg-white text-gray-700 border-gray-200 hover:border-veo-green/40'}`}
+                      title={favoritesOnly ? 'Showing favorites only' : 'Show favorites only'}
+                      aria-pressed={favoritesOnly}
+                    >
+                      <Heart className={`h-4 w-4 ${favoritesOnly ? 'text-pink-600' : 'text-gray-500'}`} fill={favoritesOnly ? 'currentColor' : 'none'} />
+                      <span className="text-sm font-medium">Favorites only</span>
+                    </button>
                   </div>
                 </div>
 
@@ -817,6 +920,19 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="font-semibold text-gray-900 text-lg">{applicant.name}</h4>
                           <div className="flex items-center gap-2">
+                            {/* Favorite toggle */}
+                            <button
+                              type="button"
+                              onClick={() => toggleFavorite(applicant.id)}
+                              className={`p-2 rounded-full border transition-all duration-200 hover:shadow-sm ${favoriteIds.includes(applicant.id) ? 'bg-pink-50 border-pink-200' : 'bg-white border-gray-200 hover:border-veo-green/40'}`}
+                              aria-label={favoriteIds.includes(applicant.id) ? 'Unfavorite candidate' : 'Favorite candidate'}
+                              title={favoriteIds.includes(applicant.id) ? 'Remove from favorites' : 'Add to favorites'}
+                            >
+                              <Heart
+                                className={`h-4 w-4 ${favoriteIds.includes(applicant.id) ? 'text-pink-600' : 'text-gray-500'}`}
+                                fill={favoriteIds.includes(applicant.id) ? 'currentColor' : 'none'}
+                              />
+                            </button>
                             {applicant.hasAIReport ? (
                               <Badge className={`${getScoreColor(applicant.aiScore)} border font-bold`}>
                                 {applicant.aiScore}/10
@@ -832,14 +948,22 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                           <span className="font-medium">{applicant.email}</span>
                         </div>
                         <div className="flex flex-wrap gap-1 mb-3">
-                          {applicant.skills.slice(0, 4).map((skill: string, index: number) => (
-                            <Badge key={index} variant="secondary" className="text-xs bg-gray-100 text-gray-700">
-                              {skill}
-                            </Badge>
+                          {(applicant.uiSkills || applicant.skills || []).slice(0, 4).map((skill: string, index: number) => (
+                            <button
+                              key={index}
+                              type="button"
+                              onClick={() => setSelectedSkill({ candidateName: applicant.name, skillKey: skill })}
+                              className="rounded-md focus:outline-none focus:ring-2 focus:ring-veo-green/30"
+                              title={`View details for ${skill}`}
+                            >
+                              <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 hover:bg-gray-200">
+                                {skill}
+                              </Badge>
+                            </button>
                           ))}
-                          {applicant.skills.length > 4 && (
+                          {((applicant.uiSkills || applicant.skills || []).length > 4) && (
                             <Badge variant="secondary" className="text-xs bg-veo-green/10 text-veo-green">
-                              +{applicant.skills.length - 4}
+                              +{(applicant.uiSkills || applicant.skills || []).length - 4}
                             </Badge>
                           )}
                         </div>
@@ -948,6 +1072,12 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                   <span className="text-sm text-gray-600">Total Applicants</span>
                   <Badge variant="secondary" className="bg-blue-100 text-blue-800">
                     {candidates.length}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Favorites</span>
+                  <Badge variant="secondary" className="bg-pink-50 text-pink-700">
+                    {favoriteIds.length}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
@@ -1121,6 +1251,32 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
         onClose={() => setAiReportCandidate(null)}
         candidate={aiReportCandidate}
       />
+
+      {/* Skill Details Modal */}
+      {selectedSkill && (
+        <Dialog open={!!selectedSkill} onOpenChange={() => setSelectedSkill(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {selectedSkill.skillKey} for {selectedSkill.candidateName}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2 mt-2">
+              {(extractedSkillsFullMap[selectedSkill.candidateName]?.[selectedSkill.skillKey] || []).length > 0 ? (
+                (extractedSkillsFullMap[selectedSkill.candidateName]?.[selectedSkill.skillKey] || []).map((val: string, idx: number) => (
+                  <div key={idx} className="px-3 py-2 bg-gray-100 rounded text-gray-800 text-sm">
+                    {val}
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-gray-600">
+                  No details available for this skill.
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
