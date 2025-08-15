@@ -18,6 +18,9 @@ export interface Job {
   hiringManager: string
 }
 
+// Ensure this route is not statically cached by Next.js
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const assetsPath = path.join(process.cwd(), 'assets', 'jobs')
@@ -36,22 +39,23 @@ export async function GET() {
       const jobPath = path.join(assetsPath, jobFolder)
       const files = fs.readdirSync(jobPath)
       
-      // Find job description file
+      // Find job description file (optional)
       const descriptionFiles = files.filter(file => 
-        file.includes('job-description') && file.endsWith('.txt')
+        file.toLowerCase().includes('job-description') && file.toLowerCase().endsWith('.txt')
       )
       
-      if (descriptionFiles.length === 0) continue
-
-      // Read job description
-      const descriptionPath = path.join(jobPath, descriptionFiles[0])
-      const description = fs.readFileSync(descriptionPath, 'utf-8')
+      // Read job description if present; otherwise fallback to a default
+      let description = `Job: ${jobFolder}\nDescription not provided. Place a 'job-description.txt' file in this folder for richer details.`
+      if (descriptionFiles.length > 0) {
+        const descriptionPath = path.join(jobPath, descriptionFiles[0])
+        description = fs.readFileSync(descriptionPath, 'utf-8')
+      }
       
       // Count CV files
-      const cvFiles = files.filter(file => file.endsWith('.pdf'))
+  const cvFiles = files.filter(file => file.toLowerCase().endsWith('.pdf'))
       
       // Parse job description to extract requirements
-      const requirements = extractRequirements(description)
+  const requirements = extractRequirements(description)
       
       // Create job object
       const job: Job = {

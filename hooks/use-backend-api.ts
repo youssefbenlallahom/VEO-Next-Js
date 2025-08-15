@@ -5,7 +5,7 @@ import {
 } from '@/lib/api-service'
 
 // Helper function to transform database candidate report to UI format
-function transformCandidateReport(report: CandidateReport) {
+function transformCandidateReport(report: CandidateReport, filename?: string) {
   // Generate a fake email and other details based on the candidate name
   const nameToEmail = (name: string) => {
     return name.toLowerCase().replace(/\s+/g, '.') + '@email.com'
@@ -85,7 +85,10 @@ function transformCandidateReport(report: CandidateReport) {
     location: generateLocation(report.candidate_name),
     skills: generateSkills(report.applied_job_title),
     avatar: "/placeholder.svg",
-    resumeUrl: `/cv/${report.applied_job_title}/${report.candidate_name.toLowerCase().replace(/\s+/g, '-')}-cv.pdf`,
+    // Prefer exact filename if provided from assets enumeration; fallback to slug pattern
+    resumeUrl: filename
+      ? `/cv/${report.applied_job_title}/${filename}`
+      : `/cv/${report.applied_job_title}/${report.candidate_name.toLowerCase().replace(/\s+/g, '-')}-cv.pdf`,
     strengths: report.strengths,
     gaps: report.gaps,
     salary: '$60,000 - $80,000', // Default salary range
@@ -124,7 +127,7 @@ export function useAllCandidates() {
       console.log(`� Database returned ${analyzedResponse.candidates.length} analyzed candidates`)
       
       // Create a map of analyzed candidates by name for quick lookup
-      const analyzedMap = new Map()
+      const analyzedMap = new Map<string, CandidateReport>()
       analyzedResponse.candidates.forEach(report => {
         const normalizedName = report.candidate_name.toLowerCase().trim()
         analyzedMap.set(normalizedName, report)
@@ -138,11 +141,13 @@ export function useAllCandidates() {
         if (analysisReport) {
           // Candidate has been analyzed - use the analysis data
           console.log(`✅ Found analysis for: ${assetCandidate.candidate_name}`)
-          return transformCandidateReport({
-            ...analysisReport,
+          return transformCandidateReport(
+            {
+              ...analysisReport
+            },
             // Ensure we keep the correct filename from assets
-            filename: assetCandidate.filename
-          })
+            assetCandidate.filename
+          )
         } else {
           // Candidate has NOT been analyzed - show as "Not Analyzed"
           console.log(`❌ No analysis for: ${assetCandidate.candidate_name}`)
@@ -172,13 +177,26 @@ export function useAllCandidates() {
           }
         }
       })
+
+      // Include analyzed candidates that don't have a matching asset file (still show them)
+      const assetNames = new Set(
+        allCandidatesResponse.candidates.map((c: any) => c.candidate_name.toLowerCase().trim())
+      )
+      const dbOnlyCandidates = analyzedResponse.candidates
+        .filter(report => !assetNames.has(report.candidate_name.toLowerCase().trim()))
+        .map(report => {
+          console.log(`� Adding DB-only candidate (no asset file found): ${report.candidate_name}`)
+          return transformCandidateReport({ ...report })
+        })
+
+      const finalList = [...mergedCandidates, ...dbOnlyCandidates]
       
-      console.log(`🔄 Final merged candidates: ${mergedCandidates.length}`)
-      console.log('📋 Analyzed candidates:', mergedCandidates.filter(c => c.hasAIReport).length)
-      console.log('❓ Not analyzed candidates:', mergedCandidates.filter(c => !c.hasAIReport).length)
+      console.log(`🔄 Final merged candidates: ${finalList.length}`)
+      console.log('📋 Analyzed candidates:', finalList.filter(c => c.hasAIReport).length)
+      console.log('❓ Not analyzed candidates:', finalList.filter(c => !c.hasAIReport).length)
       
       // Force React to re-render by creating a completely new array
-      setCandidates([...mergedCandidates])
+      setCandidates([...finalList])
       setRefreshCounter(prev => prev + 1)
       console.log('🔄 State updated, refresh counter:', refreshCounter + 1)
     } catch (err) {

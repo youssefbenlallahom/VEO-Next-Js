@@ -23,6 +23,8 @@ export interface Candidate {
   jobId: string
 }
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -79,9 +81,12 @@ function createCandidateFromFilename(
   jobTitle: string,
   jobId: string
 ): Candidate {
-  // Extract name from filename (remove -cv.pdf and format)
-  const nameFromFile = filename
-    .replace('-cv.pdf', '')
+  // Extract name from filename: remove extension, optional trailing -cv, normalize separators
+  const lower = filename.toLowerCase()
+  const baseNoExt = lower.endsWith('.pdf') ? lower.slice(0, -4) : lower
+  const noCv = baseNoExt.endsWith('-cv') ? baseNoExt.slice(0, -3) : baseNoExt
+  const normalized = noCv.replace(/[ _]+/g, '-')
+  const nameFromFile = normalized
     .split('-')
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ')
@@ -92,7 +97,7 @@ function createCandidateFromFilename(
   return {
     id,
     name: nameFromFile,
-    email: `${filename.replace('-cv.pdf', '').replace(/-/g, '.')}@email.com`,
+  email: `${normalized.replace(/-/g, '.')}@email.com`,
     phone: generatePhoneNumber(),
     position: jobTitle,
     aiScore: Math.floor(Math.random() * 40) + 60, // 60-100 range

@@ -4,9 +4,15 @@ import { join } from 'path'
 
 // Function to extract candidate name from filename
 function extractCandidateInfo(filename: string, jobTitle: string) {
-  // Remove the '-cv.pdf' suffix and convert to proper name
-  const nameFromFile = filename
-    .replace('-cv.pdf', '')
+  // Normalize filename casing and strip extension
+  const lower = filename.toLowerCase()
+  const base = lower.endsWith('.pdf') ? lower.slice(0, -4) : lower
+  // Remove optional trailing "-cv"
+  const namePart = base.endsWith('-cv') ? base.slice(0, -3) : base
+  // Normalize delimiters: underscores/spaces -> hyphens for consistent splitting
+  const normalized = namePart.replace(/[_\s]+/g, '-')
+  // Convert kebab-case to Proper Case
+  const nameFromFile = normalized
     .split('-')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
@@ -36,8 +42,9 @@ export async function GET() {
       const jobPath = join(assetsPath, jobDir)
       
       try {
-        const files = readdirSync(jobPath)
-        const pdfFiles = files.filter(file => file.endsWith('-cv.pdf'))
+  const files = readdirSync(jobPath)
+  // Include any PDF file, not only ones ending with "-cv.pdf"
+  const pdfFiles = files.filter(file => file.toLowerCase().endsWith('.pdf'))
         
         console.log(`📄 Found ${pdfFiles.length} CV files in ${jobDir}:`, pdfFiles)
 

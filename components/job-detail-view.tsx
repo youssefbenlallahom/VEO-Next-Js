@@ -4,11 +4,13 @@ import React, { useState, useMemo, useEffect } from "react"
 import dynamic from 'next/dynamic'
 import Link from "next/link"
 import { useJobWithCandidates } from "@/hooks/use-data"
+import { useAllCandidates } from "@/hooks/use-backend-api"
 import { useCandidateReports, mergeCandidateWithReport } from "@/hooks/use-candidate-reports"
 import { AIReportModal } from "@/components/ai-report-modal"
 import { JobSkillsModal } from "@/components/job-skills-modal"
 import { AssessmentCriteriaSidebar } from "@/components/assessment-criteria-sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -115,6 +117,14 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [extractedSkillsFullMap, setExtractedSkillsFullMap] = useState<Record<string, Record<string, string[]>>>({})
   // Skill details dialog state
   const [selectedSkill, setSelectedSkill] = useState<{candidateName: string, skillKey: string} | null>(null)
+  // Recommendation state
+  const { candidates: allCandidates, loading: allCandidatesLoading } = useAllCandidates()
+  const [recommendedCandidates, setRecommendedCandidates] = useState<any[]>([])
+  const [isMatching, setIsMatching] = useState(false)
+  const [matchProgress, setMatchProgress] = useState<{processed: number; total: number}>({ processed: 0, total: 0 })
+  const [matchInfoMap, setMatchInfoMap] = useState<Record<string, any>>({})
+  const [autoMatchedJobId, setAutoMatchedJobId] = useState<string | null>(null)
+  const [matchDebug, setMatchDebug] = useState<{ errors: string[]; lastPayload?: any; lastResponse?: any }>({ errors: [] })
 
   // Load Favorites from localStorage per job
   useEffect(() => {
@@ -165,12 +175,134 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     return () => { active = false }
   }, [])
 
+  // Pool now comes from useAllCandidates hook (merged assets + DB)
+
+  // Build categorized job skills from saved assessment criteria
+  const getJobSkillsCategorized = (): Record<string, string[]> | null => {
+    // First, try saved criteria
+    const criteria = getJobAssessmentCriteria()
+    if (criteria) {
+      if (criteria.categorizedSkills && typeof criteria.categorizedSkills === 'object') {
+        return criteria.categorizedSkills as Record<string, string[]>
+      }
+      if (Array.isArray(criteria.skills)) {
+        return { General: criteria.skills as string[] }
+      }
+    }
+    // As a fallback, derive skills from job requirements text by tokenizing keywords
+    if (job?.requirements?.length) {
+      const tokens = new Set<string>()
+      job.requirements.forEach(req => {
+        String(req)
+          .toLowerCase()
+          .split(/[^a-zA-Z0-9+#.]+/)
+          .filter(Boolean)
+          .forEach(tok => {
+            if (tok.length >= 3) tokens.add(tok)
+          })
+      })
+      const guess = Array.from(tokens)
+      if (guess.length) return { General: guess }
+    }
+    return null
+  }
+
+  const defaultSynonyms: Record<string, string[]> = {
+    sql: ["postgresql", "mysql", "sqlite", "sql server"],
+    "power bi": ["microsoft power bi", "ms power bi"],
+    javascript: ["js"],
+    ts: ["typescript"],
+    excel: ["microsoft excel", "ms excel"],
+  }
+
+  const startMatchingRecommendations = async () => {
+    const jobSkills = getJobSkillsCategorized()
+    if (!jobSkills) {
+      alert('No job skills found. Configure job skills first.')
+      return
+    }
+    // Exclude candidates who applied to this job (same folder) from recommendations
+    const appliedNames = new Set((candidates || []).map(c => String(c.name).toLowerCase().trim()))
+    const pool = allCandidates.filter(c => {
+      const sameJob = (c.position || '') === (job?.title || '')
+      const isAppliedHere = appliedNames.has(String(c.name).toLowerCase().trim())
+      return !sameJob && !isAppliedHere
+    })
+    setIsMatching(true)
+    setMatchProgress({ processed: 0, total: pool.length })
+  const newRecommended: any[] = []
+  const newInfo: Record<string, any> = {}
+
+    // Sequential to avoid backend overload
+    let processed = 0
+    for (const cand of pool) {
+      try {
+        // Resolve extracted skills using case-insensitive name match
+        const skillKey = Object.keys(extractedSkillsFullMap).find(k => k.toLowerCase() === String(cand.name).toLowerCase())
+        const candidateSkillsCategorized: Record<string, string[]> = skillKey
+          ? extractedSkillsFullMap[skillKey]
+          : { General: (cand.skills || []) as string[] }
+        const payload = {
+          candidate_skills: candidateSkillsCategorized,
+          job_skills: jobSkills,
+          synonyms: defaultSynonyms,
+          include_fuzzy: true,
+          fuzzy_threshold: 85,
+          debug: true,
+        }
+        const res = await fetch('/api/skill-match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '')
+          console.error('Skill match call failed:', res.status, txt)
+          setMatchDebug(prev => ({ ...prev, errors: [...prev.errors, `HTTP ${res.status}: ${txt}`], lastPayload: payload }))
+          throw new Error(`HTTP ${res.status}`)
+        }
+        const data = await res.json()
+        setMatchDebug(prev => ({ ...prev, lastPayload: payload, lastResponse: data }))
+  newInfo[cand.name] = data
+        // Consider as recommended if strong match or positive is_match
+        if (data?.is_match || (data?.match_percentage ?? 0) >= 60) {
+          newRecommended.push({ ...cand, recommendedFrom: 'cvteck' })
+        }
+      } catch (e) {
+        // ignore errors per candidate
+      } finally {
+        processed++
+        setMatchProgress({ processed, total: pool.length })
+      }
+    }
+  setMatchInfoMap(prev => ({ ...prev, ...newInfo }))
+    setRecommendedCandidates(newRecommended)
+    setIsMatching(false)
+  }
+
+  // Auto-run matching once per job when data is ready
+  useEffect(() => {
+    if (!job?.id) return
+    if (autoMatchedJobId === job.id) return
+    if (allCandidatesLoading || allCandidates.length === 0) return
+    // Only run if we have some job skills configured
+    const jobSkills = getJobSkillsCategorized()
+    if (!jobSkills) return
+    ;(async () => {
+      try {
+        await startMatchingRecommendations()
+      } finally {
+        setAutoMatchedJobId(job.id)
+      }
+    })()
+  }, [job?.id, allCandidatesLoading, allCandidates])
   // Build skills from score details
   const extractSkillsFromScoreDetails = (scoreDetails: any): string[] => {
     if (!scoreDetails) return []
     const src = scoreDetails.skills_breakdown || scoreDetails.hard_skills || scoreDetails.top_skills || scoreDetails.skills
     if (!src) return []
     let skills: string[] = []
+
     if (Array.isArray(src)) {
       skills = src
         .map((item: any) => {
@@ -189,16 +321,28 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const filteredAndSortedCandidates = useMemo(() => {
     if (!candidates) return []
 
-    // Merge candidates with their AI reports and derive display skills
-    const candidatesWithReports = candidates.map(candidate => {
+    // Base candidates (applied to this job)
+  const baseCandidates = candidates.map(candidate => {
       const merged: any = mergeCandidateWithReport(candidate, candidateReports)
       const extracted = extractedSkillsMap[merged.name] || []
       const reportSkills = extractSkillsFromScoreDetails(merged.scoreDetails)
       const uiSkills = extracted.length ? extracted : (reportSkills.length ? reportSkills : merged.skills)
-      return { ...merged, uiSkills }
+  return { ...merged, uiSkills, matchInfo: matchInfoMap[merged.name] || null }
     })
 
-    const filtered = candidatesWithReports.filter((candidate) => {
+    // Recommended candidates (from other jobs), avoid duplicates, attach match info
+    const recommended = recommendedCandidates
+      // de-duplicate by candidate name to avoid id collisions across lists
+      .filter(rc => !baseCandidates.some(b => b.name === rc.name))
+      .map(rc => ({
+        ...rc,
+        uiSkills: (extractedSkillsMap[rc.name] || rc.skills || []),
+        matchInfo: matchInfoMap[rc.name] || null,
+      }))
+
+    const mergedList = [...baseCandidates, ...recommended]
+
+    const filtered = mergedList.filter((candidate: any) => {
       const skillsArr: string[] = (candidate as any).uiSkills || candidate.skills || []
       const matchesSearch =
         candidate.name.toLowerCase().includes(candidateSearch.toLowerCase()) ||
@@ -229,7 +373,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     })
 
     return filtered
-  }, [candidates, candidateReports, extractedSkillsMap, candidateSearch, sortBy, favoritesOnly, favoriteIds])
+  }, [candidates, candidateReports, extractedSkillsMap, recommendedCandidates, matchInfoMap, candidateSearch, sortBy, favoritesOnly, favoriteIds])
 
   // Pagination for candidates
   const totalPages = Math.ceil(filteredAndSortedCandidates.length / CANDIDATES_PER_PAGE)
@@ -282,12 +426,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     }
   }
 
-  // Get job-specific assessment criteria
-  const getJobAssessmentCriteria = () => {
+  // Get job-specific assessment criteria (function declaration for hoisting)
+  function getJobAssessmentCriteria() {
     if (!job) return null
-    
     const saved = JSON.parse(localStorage.getItem('job-skills-barems') || '[]')
-    // Find criteria specifically for this job title
     const jobCriteria = saved.find((barem: any) => barem.jobTitle === job.title)
     return jobCriteria
   }
@@ -920,6 +1062,11 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="font-semibold text-gray-900 text-lg">{applicant.name}</h4>
                           <div className="flex items-center gap-2">
+                            {applicant.recommendedFrom === 'cvteck' && (
+                              <Badge className="bg-purple-100 text-purple-700 border-purple-200" title="Matched via skills">
+                                Recommended (CVTeck)
+                              </Badge>
+                            )}
                             {/* Favorite toggle */}
                             <button
                               type="button"
@@ -944,6 +1091,26 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                             )}
                           </div>
                         </div>
+                        {applicant.matchInfo && (
+                          <div className="mb-3">
+                            <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                              <span>Skill Match</span>
+                              <span>{Math.round(applicant.matchInfo.match_percentage || 0)}%</span>
+                            </div>
+                            <Progress value={Math.round(applicant.matchInfo.match_percentage || 0)} />
+                            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                              <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+                                Matched {Object.values(applicant.matchInfo.matched_skills || {}).reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0)} skills
+                              </Badge>
+                              <Badge variant="secondary" className="bg-amber-50 text-amber-700">
+                                Missing {Object.values(applicant.matchInfo.missing_skills || {}).reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0)} skills
+                              </Badge>
+                              {Object.values(applicant.matchInfo.extra_skills || {}).some((arr: any) => (Array.isArray(arr) ? arr.length : 0) > 0) && (
+                                <Badge variant="secondary" className="bg-blue-50 text-blue-700">Bonus skills</Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         <div className="grid grid-cols-1 gap-2 text-sm text-gray-600 mb-3">
                           <span className="font-medium">{applicant.email}</span>
                         </div>
@@ -1117,6 +1284,31 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                 <CardTitle className="text-lg">Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                {isMatching && (
+                  <div className="w-full text-xs text-gray-600">
+                    Matching... ({matchProgress.processed}/{matchProgress.total})
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  className="w-full justify-start btn-secondary"
+                  onClick={() => startMatchingRecommendations()}
+                  disabled={isMatching}
+                  title="Re-run recommendations"
+                >
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  Re-run Recommendations
+                </Button>
+                {matchDebug.errors.length > 0 && (
+                  <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2">
+                    <div className="font-medium mb-1">Matching Errors</div>
+                    <ul className="list-disc pl-4">
+                      {matchDebug.errors.map((e, i) => (
+                        <li key={i} className="break-words">{e}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <Button 
                   variant="outline" 
                   className="w-full justify-start btn-secondary"

@@ -20,6 +20,8 @@ class ApiService {
         'Content-Type': 'application/json',
         ...options?.headers,
       },
+      // Avoid caching when querying backend
+      cache: 'no-store',
       ...options,
     })
 
@@ -83,7 +85,7 @@ class ApiService {
   }> {
     // This will help us get ALL candidates including those not yet analyzed
     try {
-      const response = await fetch('/api/candidates/all')
+  const response = await fetch('/api/candidates/all', { cache: 'no-store' })
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }

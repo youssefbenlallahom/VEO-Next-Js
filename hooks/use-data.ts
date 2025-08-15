@@ -46,7 +46,7 @@ export function useJobs() {
     const fetchJobs = async () => {
       try {
         setLoading(true)
-        const response = await fetch('/api/jobs')
+  const response = await fetch('/api/jobs', { cache: 'no-store' })
         if (!response.ok) {
           throw new Error('Failed to fetch jobs')
         }
@@ -75,7 +75,7 @@ export function useCandidates(jobId?: string) {
       try {
         setLoading(true)
         const url = jobId ? `/api/candidates?jobId=${jobId}` : '/api/candidates'
-        const response = await fetch(url)
+  const response = await fetch(url, { cache: 'no-store' })
         if (!response.ok) {
           throw new Error('Failed to fetch candidates')
         }
