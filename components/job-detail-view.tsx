@@ -219,13 +219,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     return null
   }
 
-  const defaultSynonyms: Record<string, string[]> = {
-    sql: ["postgresql", "mysql", "sqlite", "sql server"],
-    "power bi": ["microsoft power bi", "ms power bi"],
-    javascript: ["js"],
-    ts: ["typescript"],
-    excel: ["microsoft excel", "ms excel"],
-  }
+  // Old fuzzy/synonym-based matching removed
 
   const startMatchingRecommendations = async () => {
     const jobSkills = getJobSkillsCategorized()
