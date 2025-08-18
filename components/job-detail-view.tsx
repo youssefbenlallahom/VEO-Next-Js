@@ -125,6 +125,11 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [matchInfoMap, setMatchInfoMap] = useState<Record<string, any>>({})
   const [autoMatchedJobId, setAutoMatchedJobId] = useState<string | null>(null)
   const [matchDebug, setMatchDebug] = useState<{ errors: string[]; lastPayload?: any; lastResponse?: any }>({ errors: [] })
+  // Cross-job suggestions (separate list)
+  const [suggestedCandidates, setSuggestedCandidates] = useState<any[]>([])
+  // Candidates the user opted to add from suggestions into the main Applicants list
+  const [addedSuggestedCandidates, setAddedSuggestedCandidates] = useState<any[]>([])
+  const [addedIdMap, setAddedIdMap] = useState<Record<string, number>>({})
 
   // Load Favorites from localStorage per job
   useEffect(() => {
@@ -191,6 +196,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     }
     // As a fallback, derive skills from job requirements text by tokenizing keywords
     if (job?.requirements?.length) {
+      // Filter out common stopwords/noise to keep only meaningful skill tokens
+      const stopwords = new Set([
+        'and','or','the','to','of','in','on','for','with','a','an','is','are','be','as','by','at','from','that','this','their','our','your','you','we','it','into','across','per','within','using','use','used','can','will','should','must','have','has','had','including','include','includes','etc','i.e','e.g','such','ability','able','years','year','minimum','plus','level','experience','experiences','field','related','degree','bachelor','master','preferred','strong','excellent','good','great','solid','skills','skill','knowledge','understanding','familiarity','proficiency','proficient','background','capability','capabilities','responsibilities','responsibility','tasks','duties','requirements','requirement','candidate','candidates','communication','problem','solving','critical','thinking','detail','attention','management','processes','process','techniques','technique','statistical','statistics','professional'
+      ])
       const tokens = new Set<string>()
       job.requirements.forEach(req => {
         String(req)
@@ -198,7 +207,11 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
           .split(/[^a-zA-Z0-9+#.]+/)
           .filter(Boolean)
           .forEach(tok => {
-            if (tok.length >= 3) tokens.add(tok)
+            // Keep alphanumerics and tech tokens like c#, c++ as 'c#' or 'c++' are excluded by our split; allow sql, python, power, bi, etc.
+            const cleaned = tok.replace(/^\d+$/, '') // drop pure numbers
+            if (!cleaned || cleaned.length < 3) return
+            if (stopwords.has(cleaned)) return
+            tokens.add(cleaned)
           })
       })
       const guess = Array.from(tokens)
@@ -228,9 +241,9 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       const isAppliedHere = appliedNames.has(String(c.name).toLowerCase().trim())
       return !sameJob && !isAppliedHere
     })
-    setIsMatching(true)
-    setMatchProgress({ processed: 0, total: pool.length })
-  const newRecommended: any[] = []
+  setIsMatching(true)
+  setMatchProgress({ processed: 0, total: pool.length })
+  const newAll: any[] = []
   const newInfo: Record<string, any> = {}
 
     // Sequential to avoid backend overload
@@ -239,9 +252,23 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       try {
         // Resolve extracted skills using case-insensitive name match
         const skillKey = Object.keys(extractedSkillsFullMap).find(k => k.toLowerCase() === String(cand.name).toLowerCase())
-        const candidateSkillsCategorized: Record<string, string[]> = skillKey
+        const candidateSkillsCategorizedRaw: Record<string, string[]> = skillKey
           ? extractedSkillsFullMap[skillKey]
           : { General: (cand.skills || []) as string[] }
+        // Clean placeholders/empties to avoid 0%-noise
+        const candidateSkillsCategorized: Record<string, string[]> = Object.fromEntries(
+          Object.entries(candidateSkillsCategorizedRaw).map(([k, arr]) => [
+            k,
+            (arr || []).filter(s => !!s && s.trim() && s.trim().toLowerCase() !== 'to be determined')
+          ])
+        )
+        const hasAny = Object.values(candidateSkillsCategorized).some(v => v.length > 0)
+        if (!hasAny) {
+          // Nothing meaningful to match, skip
+          processed++
+          setMatchProgress({ processed, total: pool.length })
+          continue
+        }
         const payload = {
           candidate_skills: candidateSkillsCategorized,
           job_skills: jobSkills,
@@ -264,10 +291,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
         const data = await res.json()
         setMatchDebug(prev => ({ ...prev, lastPayload: payload, lastResponse: data }))
   newInfo[cand.name] = data
-        // Consider as recommended if strong match or positive is_match
-        if (data?.is_match || (data?.match_percentage ?? 0) >= 60) {
-          newRecommended.push({ ...cand, recommendedFrom: 'cvteck' })
-        }
+  newAll.push({ ...cand, recommendedFrom: 'cvteck' })
       } catch (e) {
         // ignore errors per candidate
       } finally {
@@ -276,7 +300,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       }
     }
   setMatchInfoMap(prev => ({ ...prev, ...newInfo }))
-    setRecommendedCandidates(newRecommended)
+  setSuggestedCandidates(newAll)
     setIsMatching(false)
   }
 
@@ -330,9 +354,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   return { ...merged, uiSkills, matchInfo: matchInfoMap[merged.name] || null }
     })
 
-    // Recommended candidates (from other jobs), avoid duplicates, attach match info
-    const recommended = recommendedCandidates
-      // de-duplicate by candidate name to avoid id collisions across lists
+    // Only include user-added suggestions in the main list (keep suggestions separate)
+    const added = addedSuggestedCandidates
       .filter(rc => !baseCandidates.some(b => b.name === rc.name))
       .map(rc => ({
         ...rc,
@@ -340,7 +363,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
         matchInfo: matchInfoMap[rc.name] || null,
       }))
 
-    const mergedList = [...baseCandidates, ...recommended]
+    const mergedList = [...baseCandidates, ...added]
 
     const filtered = mergedList.filter((candidate: any) => {
       const skillsArr: string[] = (candidate as any).uiSkills || candidate.skills || []
@@ -372,8 +395,39 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       }
     })
 
-    return filtered
-  }, [candidates, candidateReports, extractedSkillsMap, recommendedCandidates, matchInfoMap, candidateSearch, sortBy, favoritesOnly, favoriteIds])
+  return filtered
+  }, [candidates, candidateReports, extractedSkillsMap, addedSuggestedCandidates, matchInfoMap, candidateSearch, sortBy, favoritesOnly, favoriteIds])
+
+  // Sorted suggestions list (exclude already added and already applied)
+  const sortedSuggestions = useMemo(() => {
+    const appliedNames = new Set((candidates || []).map(c => String(c.name).toLowerCase().trim()))
+    const addedNames = new Set(addedSuggestedCandidates.map(c => String(c.name).toLowerCase().trim()))
+    const pool = suggestedCandidates.filter(c => !appliedNames.has(String(c.name).toLowerCase().trim()) && !addedNames.has(String(c.name).toLowerCase().trim()))
+    const enriched = pool.map(c => {
+      const info = matchInfoMap[c.name]
+      const pct = info?.match_percentage ?? 0
+      const matched = info?.matched_count ?? 0
+      const total = info?.total_required ?? 0
+      return { ...c, _pct: pct, _matched: matched, _total: total }
+    })
+    enriched.sort((a, b) => (b._pct - a._pct) || (b._matched - a._matched) || a.name.localeCompare(b.name))
+    return enriched
+  }, [suggestedCandidates, addedSuggestedCandidates, matchInfoMap, candidates])
+
+  const getOrCreateAddedId = (name: string) => {
+    if (addedIdMap[name]) return addedIdMap[name]
+    const newId = 100000 + Object.keys(addedIdMap).length + 1
+    setAddedIdMap(prev => ({ ...prev, [name]: newId }))
+    return newId
+  }
+
+  const handleAddSuggested = (cand: any) => {
+    setAddedSuggestedCandidates(prev => {
+      if (prev.some(c => c.name === cand.name)) return prev
+      const id = getOrCreateAddedId(cand.name)
+      return [...prev, { ...cand, id }]
+    })
+  }
 
   // Pagination for candidates
   const totalPages = Math.ceil(filteredAndSortedCandidates.length / CANDIDATES_PER_PAGE)
@@ -671,6 +725,11 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   }
 
   const getCVUrl = (candidate: any) => {
+    // Prefer resumeUrl if provided (from merged data)
+    if (candidate.resumeUrl) {
+      const safe = candidate.resumeUrl.startsWith('/api/cv/') ? candidate.resumeUrl : `/api/cv/${encodeURIComponent(candidate.position || job?.title || '')}/${candidate.resumeUrl.split('/').pop()}`
+      return safe
+    }
     // Mapping of mock candidate names to actual PDF filenames
     const nameToFileMap: Record<string, string> = {
       // HR Data Analyst candidates
@@ -696,7 +755,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       (candidate.name.toLowerCase().replace(/\s+/g, '-') + '-cv.pdf');
     
     // Use the API route to serve the CV
-    const jobTitle = job?.title || '';
+  // If candidate is from another job, use their position as folder
+  const jobTitle = (candidate.position && candidate.position !== job?.title) ? candidate.position : (job?.title || '')
     const url = `/api/cv/${encodeURIComponent(jobTitle)}/${fileName}`;
     console.log('Generated CV URL:', url);
     console.log('For candidate:', candidate.name);
@@ -766,6 +826,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                     </div>
                   </div>
                 </div>
+
+                {/* Suggested candidates panel will appear in Applicants section below */}
 
                 <div className="animate-slideUp" style={{ animationDelay: '0.5s' }}>
                   <h4 className="font-semibold text-gray-900 mb-6 text-xl">Job Description</h4>
@@ -991,8 +1053,78 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                       <Heart className={`h-4 w-4 ${favoritesOnly ? 'text-pink-600' : 'text-gray-500'}`} fill={favoritesOnly ? 'currentColor' : 'none'} />
                       <span className="text-sm font-medium">Favorites only</span>
                     </button>
+
+                    {/* Suggestions count indicator */}
+                    <div className="text-xs text-gray-600 px-2 py-1 rounded border border-gray-200">
+                      Suggestions: {sortedSuggestions.length}
+                    </div>
                   </div>
                 </div>
+
+                {/* Suggested Candidates Panel */}
+                {sortedSuggestions.length > 0 && (
+                  <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                        <Wand2 className="h-4 w-4 text-gray-600" />
+                        Suggested Candidates
+                        <Badge variant="secondary" className="ml-1 bg-gray-100 text-gray-700">{sortedSuggestions.length}</Badge>
+                      </div>
+                      <div className="text-xs text-gray-600">Sorted by match</div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-auto pr-1">
+                      {sortedSuggestions.map((sug, idx) => {
+                        const info = matchInfoMap[sug.name] || {}
+                        const matched = info?.matched_count ?? 0
+                        const total = info?.total_required ?? 0
+                        const pct = Math.round(info?.match_percentage ?? 0)
+                        const matchedSkills = Object.values(info?.matched_skills || {}).flat().filter(Boolean) as string[]
+                        const topSkills = Array.from(new Set(matchedSkills)).slice(0, 3)
+                        const pctBadge = pct >= 80 ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : pct >= 60 ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-amber-100 text-amber-800 border-amber-200'
+                        const barColor = pct >= 80 ? 'bg-emerald-500' : pct >= 60 ? 'bg-blue-500' : 'bg-amber-500'
+                        return (
+                          <div key={sug.name + idx} className="group relative rounded-lg border border-gray-200 bg-gray-50 hover:bg-white hover:border-veo-green/40 transition-shadow shadow-sm hover:shadow-md p-3">
+                            <div className="absolute top-2 right-2">
+                              <Badge className={`${pctBadge} border`}>{pct}%</Badge>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-10 w-10 ring-1 ring-gray-200">
+                                <AvatarImage src={sug.avatar || '/placeholder.svg'} alt={sug.name} />
+                                <AvatarFallback className="bg-gray-100 text-gray-700 text-xs">
+                                  {sug.name.split(' ').map((n: string) => n[0]).join('')}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-gray-900 truncate">{sug.name}</div>
+                                <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                                  {sug.position && (
+                                    <Badge variant="outline" className="h-5 px-2 border-gray-300 text-gray-600 bg-white">From: {sug.position}</Badge>
+                                  )}
+                                  <span className="text-xs text-gray-600">Matched {matched}/{total}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-2">
+                              <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                              </div>
+                              {topSkills.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {topSkills.map((sk, i) => (
+                                    <Badge key={i} variant="secondary" className="text-[10px] bg-gray-100 text-gray-700">{sk}</Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-3 flex items-center justify-end">
+                              <Button size="sm" className="btn-primary" onClick={() => handleAddSuggested(sug)}>Add</Button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Select All */}
                 <div className="flex items-center justify-between py-3 border-b border-gray-100">
@@ -1042,14 +1174,14 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                   {paginatedCandidates.map((applicant, index) => (
                     <div
                       key={applicant.id}
-                      className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:shadow-md hover:border-veo-green/30 transition-all duration-200 animate-slideUp"
+                      className={`relative flex items-center gap-4 p-4 rounded-lg transition-all duration-200 animate-slideUp border border-gray-200 bg-white hover:shadow-md hover:border-veo-green/30`}
                       style={{ animationDelay: `${index * 0.05}s` }}
                     >
                       <Checkbox
                         checked={selectedApplicants.includes(applicant.id)}
                         onCheckedChange={(checked) => handleApplicantSelect(applicant.id, checked as boolean)}
                       />
-                      <Avatar className="h-12 w-12 ring-2 ring-gray-100 hover:ring-veo-green/30 transition-all">
+                      <Avatar className={`h-12 w-12 ring-2 transition-all ring-gray-100 hover:ring-veo-green/30`}>
                         <AvatarImage src={applicant.avatar || "/placeholder.svg"} alt={applicant.name} />
                         <AvatarFallback className="bg-veo-green/10 text-veo-green font-semibold">
                           {applicant.name
@@ -1062,9 +1194,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="font-semibold text-gray-900 text-lg">{applicant.name}</h4>
                           <div className="flex items-center gap-2">
-                            {applicant.recommendedFrom === 'cvteck' && (
-                              <Badge className="bg-purple-100 text-purple-700 border-purple-200" title="Matched via skills">
-                                Recommended (CVTeck)
+                            {/* Compact match info */}
+                            {applicant.matchInfo && (
+                              <Badge variant="outline" className="border-gray-300 text-gray-700 bg-gray-50" title="Skill match">
+                                Matched {applicant.matchInfo.matched_count ?? 0}/{applicant.matchInfo.total_required ?? 0}
                               </Badge>
                             )}
                             {/* Favorite toggle */}
@@ -1091,26 +1224,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                             )}
                           </div>
                         </div>
-                        {applicant.matchInfo && (
-                          <div className="mb-3">
-                            <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                              <span>Skill Match</span>
-                              <span>{Math.round(applicant.matchInfo.match_percentage || 0)}%</span>
-                            </div>
-                            <Progress value={Math.round(applicant.matchInfo.match_percentage || 0)} />
-                            <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                              <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
-                                Matched {Object.values(applicant.matchInfo.matched_skills || {}).reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0)} skills
-                              </Badge>
-                              <Badge variant="secondary" className="bg-amber-50 text-amber-700">
-                                Missing {Object.values(applicant.matchInfo.missing_skills || {}).reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0)} skills
-                              </Badge>
-                              {Object.values(applicant.matchInfo.extra_skills || {}).some((arr: any) => (Array.isArray(arr) ? arr.length : 0) > 0) && (
-                                <Badge variant="secondary" className="bg-blue-50 text-blue-700">Bonus skills</Badge>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                        {/* Simplified: no progress or extra badges */}
                         <div className="grid grid-cols-1 gap-2 text-sm text-gray-600 mb-3">
                           <span className="font-medium">{applicant.email}</span>
                         </div>

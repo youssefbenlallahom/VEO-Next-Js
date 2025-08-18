@@ -4,6 +4,37 @@ import {
   CandidateReport
 } from '@/lib/api-service'
 
+// Infer skills from a job title for candidates without AI analysis
+function inferSkillsFromJobTitle(jobTitle: string) {
+  const skillMap: Record<string, string[]> = {
+    'SAP ABAP Developer': ['SAP ABAP', 'SAP HANA', 'SAP Fiori', 'SQL', 'ABAP Development', 'SAP Modules'],
+    'HR Data Analyst': ['Human Resources', 'Data Analysis', 'Excel', 'HRIS', 'Recruitment', 'Employee Relations', 'Reporting', 'KPI Development'],
+    'Technical Consultant': ['Technical Consulting', 'System Analysis', 'Project Management', 'Client Relations'],
+    'Senior BI Developer': ['Business Intelligence', 'SQL', 'ETL', 'Data Warehousing', 'Power BI', 'Tableau'],
+    'Supplier Accountant': ['Accounting', 'Supplier Management', 'Financial Analysis', 'SAP', 'Excel'],
+    'Data Analyst': ['SQL', 'Excel', 'Reporting', 'Dashboards', 'Data Visualization', 'Power BI']
+  }
+
+  // Best-effort exact or contains match
+  for (const [key, skills] of Object.entries(skillMap)) {
+    if (jobTitle.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(jobTitle.toLowerCase())) {
+      return skills
+    }
+  }
+
+  // Defaults by keyword
+  if (jobTitle.toLowerCase().includes('sap')) {
+    return ['SAP', 'ERP', 'Business Process', 'System Integration']
+  }
+  if (jobTitle.toLowerCase().includes('analyst')) {
+    return ['Data Analysis', 'Excel', 'Reporting', 'Analytics']
+  }
+  if (jobTitle.toLowerCase().includes('developer')) {
+    return ['Programming', 'Software Development', 'Database', 'Technical Skills']
+  }
+  return ['Professional Skills', 'Team Work', 'Problem Solving']
+}
+
 // Helper function to transform database candidate report to UI format
 function transformCandidateReport(report: CandidateReport, filename?: string) {
   // Generate a fake email and other details based on the candidate name
@@ -40,36 +71,6 @@ function transformCandidateReport(report: CandidateReport, filename?: string) {
     return phoneNumbers[id % phoneNumbers.length]
   }
 
-  // Extract skills from job title or use defaults
-  const generateSkills = (jobTitle: string) => {
-    const skillMap: Record<string, string[]> = {
-      'SAP ABAP Developer': ['SAP ABAP', 'SAP HANA', 'SAP Fiori', 'SQL', 'ABAP Development', 'SAP Modules'],
-      'HR Data Analyst': ['Human Resources', 'Data Analysis', 'Excel', 'HRIS', 'Recruitment', 'Employee Relations'],
-      'Technical Consultant': ['Technical Consulting', 'System Analysis', 'Project Management', 'Client Relations'],
-      'Senior BI Developer': ['Business Intelligence', 'SQL', 'ETL', 'Data Warehousing', 'Power BI', 'Tableau'],
-      'Supplier Accountant': ['Accounting', 'Supplier Management', 'Financial Analysis', 'SAP', 'Excel']
-    }
-
-    // Find the best match for job title
-    for (const [key, skills] of Object.entries(skillMap)) {
-      if (jobTitle.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(jobTitle.toLowerCase())) {
-        return skills
-      }
-    }
-
-    // Default skills based on common keywords
-    if (jobTitle.toLowerCase().includes('sap')) {
-      return ['SAP', 'ERP', 'Business Process', 'System Integration']
-    }
-    if (jobTitle.toLowerCase().includes('analyst')) {
-      return ['Data Analysis', 'Excel', 'Reporting', 'Analytics']
-    }
-    if (jobTitle.toLowerCase().includes('developer')) {
-      return ['Programming', 'Software Development', 'Database', 'Technical Skills']
-    }
-
-    return ['Professional Skills', 'Team Work', 'Problem Solving']
-  }
 
   return {
     id: report.id,
@@ -83,7 +84,7 @@ function transformCandidateReport(report: CandidateReport, filename?: string) {
     appliedDate: new Date(report.created_at).toISOString().split('T')[0],
     experience: '3+ years', // Default experience
     location: generateLocation(report.candidate_name),
-    skills: generateSkills(report.applied_job_title),
+  skills: inferSkillsFromJobTitle(report.applied_job_title),
     avatar: "/placeholder.svg",
     // Prefer exact filename if provided from assets enumeration; fallback to slug pattern
     resumeUrl: filename
@@ -149,8 +150,9 @@ export function useAllCandidates() {
             assetCandidate.filename
           )
         } else {
-          // Candidate has NOT been analyzed - show as "Not Analyzed"
+          // Candidate has NOT been analyzed - synthesize reasonable skills from the applied job title
           console.log(`❌ No analysis for: ${assetCandidate.candidate_name}`)
+          const inferredSkills = inferSkillsFromJobTitle(assetCandidate.applied_job_title)
           return {
             id: assetCandidate.id + 1000, // Ensure unique IDs
             name: assetCandidate.candidate_name,
@@ -162,7 +164,7 @@ export function useAllCandidates() {
             appliedDate: new Date().toISOString().split('T')[0],
             experience: 'Unknown',
             location: 'Tunisia',
-            skills: ['To be determined'],
+            skills: inferredSkills && inferredSkills.length ? inferredSkills : ['To be determined'],
             avatar: "/placeholder.svg",
             resumeUrl: `/cv/${assetCandidate.applied_job_title}/${assetCandidate.filename}`,
             strengths: [],

@@ -1,0 +1,73 @@
+{
+  "sections": [
+    {
+      "title": "Responsibilities",
+      "categories": [
+        {
+          "title": "Data Collection, Analysis and Reporting",
+          "items": [
+            "Collect, clean, and validate data from multiple sources (databases, APIs, business systems, surveys).",
+            "Analyze large datasets to identify trends, patterns, and correlations that drive business insights.",
+            "Prepare and deliver reports, dashboards, and data visualizations to communicate findings to stakeholders in a clear and actionable manner."
+          ]
+        },
+        {
+          "title": "Trend Identification, Forecasting and Benchmarking",
+          "items": [
+            "Apply statistical methods and predictive modeling techniques to forecast key business metrics.",
+            "Identify business performance trends and anomalies to support proactive decision-making.",
+            "Conduct benchmarking studies to compare internal performance against industry standards and competitors."
+          ]
+        },
+        {
+          "title": "KPI Development and Monitoring",
+          "items": [
+            "Develop, track, and maintain key performance indicators (KPIs) relevant to business objectives.",
+            "Partner with stakeholders to define metrics that measure operational efficiency, customer behavior, and strategic outcomes."
+          ]
+        },
+        {
+          "title": "Process Improvement and Optimization",
+          "items": [
+            "Translate analytical insights into recommendations that improve workflows, resource allocation, and overall business performance.",
+            "Automate recurring reports and dashboards to increase efficiency and reduce manual effort.",
+            "Collaborate with cross-functional teams to optimize data pipelines, ETL processes, and data governance."
+          ]
+        },
+        {
+          "title": "Strategic Support and Decision-Making",
+          "items": [
+            "Provide data-driven support to leadership for strategic planning, market analysis, and business growth initiatives.",
+            "Contribute to project evaluations through cost-benefit analysis, ROI calculations, and scenario modeling.",
+            "Support change management by assessing the impact of new systems, processes, or market conditions using data insights."
+          ]
+        },
+        {
+          "title": "Technology, Tools, and Data Management",
+          "items": [
+            "Ensure data quality, integrity, and compliance with company standards and regulations (e.g., GDPR).",
+            "Support the evaluation, implementation, and maintenance of BI tools, databases, and data visualization platforms.",
+            "Develop SQL queries, scripts, and automated processes for data extraction, transformation, and analysis."
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Requirements",
+      "categories": [
+        {
+          "title": null,
+          "items": [
+            "Minimum 3 years of experience in data analysis, business intelligence, or a related field.",
+            "Strong proficiency in SQL, Excel, and data visualization tools (Power BI, Tableau, or similar).",
+            "Experience with statistical analysis and forecasting techniques (Python/R is a plus).",
+            "Knowledge of data warehousing, ETL processes, and database management.",
+            "Strong problem-solving and critical-thinking skills with attention to detail.",
+            "Excellent communication skills in French & English (professional level).",
+            "Ability to work cross-functionally and translate data findings into actionable business strategies."
+          ]
+        }
+      ]
+    }
+  ]
+}
