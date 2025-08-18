@@ -117,19 +117,18 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [extractedSkillsFullMap, setExtractedSkillsFullMap] = useState<Record<string, Record<string, string[]>>>({})
   // Skill details dialog state
   const [selectedSkill, setSelectedSkill] = useState<{candidateName: string, skillKey: string} | null>(null)
-  // Recommendation state
+  // Recommendation state: we run matching on current job applicants
   const { candidates: allCandidates, loading: allCandidatesLoading } = useAllCandidates()
-  const [recommendedCandidates, setRecommendedCandidates] = useState<any[]>([])
   const [isMatching, setIsMatching] = useState(false)
   const [matchProgress, setMatchProgress] = useState<{processed: number; total: number}>({ processed: 0, total: 0 })
   const [matchInfoMap, setMatchInfoMap] = useState<Record<string, any>>({})
   const [autoMatchedJobId, setAutoMatchedJobId] = useState<string | null>(null)
   const [matchDebug, setMatchDebug] = useState<{ errors: string[]; lastPayload?: any; lastResponse?: any }>({ errors: [] })
-  // Cross-job suggestions (separate list)
+  // Cross-job suggestions (non-applicants)
+  const [isSuggesting, setIsSuggesting] = useState(false)
   const [suggestedCandidates, setSuggestedCandidates] = useState<any[]>([])
-  // Candidates the user opted to add from suggestions into the main Applicants list
-  const [addedSuggestedCandidates, setAddedSuggestedCandidates] = useState<any[]>([])
-  const [addedIdMap, setAddedIdMap] = useState<Record<string, number>>({})
+  const [suggestInfoMap, setSuggestInfoMap] = useState<Record<string, any>>({})
+  const [suggestProgress, setSuggestProgress] = useState<{ processed: number; total: number }>({ processed: 0, total: 0 })
 
   // Load Favorites from localStorage per job
   useEffect(() => {
@@ -234,17 +233,11 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       alert('No job skills found. Configure job skills first.')
       return
     }
-    // Exclude candidates who applied to this job (same folder) from recommendations
-    const appliedNames = new Set((candidates || []).map(c => String(c.name).toLowerCase().trim()))
-    const pool = allCandidates.filter(c => {
-      const sameJob = (c.position || '') === (job?.title || '')
-      const isAppliedHere = appliedNames.has(String(c.name).toLowerCase().trim())
-      return !sameJob && !isAppliedHere
-    })
+    // Evaluate only the applicants of this job
+    const pool = (candidates || [])
   setIsMatching(true)
-  setMatchProgress({ processed: 0, total: pool.length })
-  const newAll: any[] = []
-  const newInfo: Record<string, any> = {}
+    setMatchProgress({ processed: 0, total: pool.length })
+    const newInfo: Record<string, any> = {}
 
     // Sequential to avoid backend overload
     let processed = 0
@@ -252,9 +245,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       try {
         // Resolve extracted skills using case-insensitive name match
         const skillKey = Object.keys(extractedSkillsFullMap).find(k => k.toLowerCase() === String(cand.name).toLowerCase())
+        const fallbackSkills = (Array.isArray((cand as any).uiSkills) ? (cand as any).uiSkills : cand.skills) || []
         const candidateSkillsCategorizedRaw: Record<string, string[]> = skillKey
           ? extractedSkillsFullMap[skillKey]
-          : { General: (cand.skills || []) as string[] }
+          : { General: fallbackSkills as string[] }
         // Clean placeholders/empties to avoid 0%-noise
         const candidateSkillsCategorized: Record<string, string[]> = Object.fromEntries(
           Object.entries(candidateSkillsCategorizedRaw).map(([k, arr]) => [
@@ -272,9 +266,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
         const payload = {
           candidate_skills: candidateSkillsCategorized,
           job_skills: jobSkills,
-          synonyms: defaultSynonyms,
-          include_fuzzy: true,
-          fuzzy_threshold: 85,
+          // Optional tuning
+          threshold: 60,
           debug: true,
         }
         const res = await fetch('/api/skill-match', {
@@ -289,9 +282,16 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
           throw new Error(`HTTP ${res.status}`)
         }
         const data = await res.json()
-        setMatchDebug(prev => ({ ...prev, lastPayload: payload, lastResponse: data }))
-  newInfo[cand.name] = data
-  newAll.push({ ...cand, recommendedFrom: 'cvteck' })
+        // Augment with counts for UI
+        const matchedCount = data?.matched_skills && typeof data.matched_skills === 'object'
+          ? Object.values(data.matched_skills as Record<string, string[]>)
+              .reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0)
+          : 0
+        const totalRequired = Object.values(jobSkills as Record<string, string[]>)
+          .reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0)
+        const augmented = { ...data, matched_count: matchedCount, total_required: totalRequired }
+        setMatchDebug(prev => ({ ...prev, lastPayload: payload, lastResponse: augmented }))
+        newInfo[cand.name] = augmented
       } catch (e) {
         // ignore errors per candidate
       } finally {
@@ -300,21 +300,115 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       }
     }
   setMatchInfoMap(prev => ({ ...prev, ...newInfo }))
-  setSuggestedCandidates(newAll)
-    setIsMatching(false)
+  setIsMatching(false)
   }
 
-  // Auto-run matching once per job when data is ready
+  // Build categorized skills for a candidate from extracted skills or fallback UI skills
+  const getCategorizedSkillsForCandidate = (cand: any): Record<string, string[]> => {
+    const skillKey = Object.keys(extractedSkillsFullMap).find(k => k.toLowerCase() === String(cand.name).toLowerCase())
+    const fallbackSkills = (Array.isArray((cand as any).uiSkills) ? (cand as any).uiSkills : cand.skills) || []
+    const candidateSkillsCategorizedRaw: Record<string, string[]> = skillKey
+      ? extractedSkillsFullMap[skillKey]
+      : { General: fallbackSkills as string[] }
+    const cleaned: Record<string, string[]> = Object.fromEntries(
+      Object.entries(candidateSkillsCategorizedRaw).map(([k, arr]) => [
+        k,
+        (arr || []).filter(s => !!s && s.trim() && s.trim().toLowerCase() !== 'to be determined')
+      ])
+    )
+    return cleaned
+  }
+
+  // Find recommended non-applicants using the multi endpoint
+  const runCrossJobRecommendations = async () => {
+    const jobSkills = getJobSkillsCategorized()
+    if (!jobSkills) return
+    if (!allCandidates || !candidates) return
+
+    // Pool = all candidates not already applied to this job (compare by name, case-insensitive)
+    const appliedNames = new Set((candidates || []).map(c => String(c.name).toLowerCase()))
+    const pool = (allCandidates || []).filter(c => !appliedNames.has(String(c.name).toLowerCase()))
+    if (pool.length === 0) return
+
+    setIsSuggesting(true)
+    setSuggestProgress({ processed: 0, total: pool.length })
+
+    // Prepare payload for multi endpoint
+    const multiPayload = {
+      candidates: pool.map(c => ({ name: c.name, skills: getCategorizedSkillsForCandidate(c) })),
+      job_skills: jobSkills,
+      debug: false,
+    }
+
+    try {
+      const res = await fetch('/api/skill-match-multi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(multiPayload),
+      })
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '')
+        setMatchDebug(prev => ({ ...prev, errors: [...prev.errors, `Multi HTTP ${res.status}: ${txt}`] }))
+        return
+      }
+      const data = await res.json()
+      const matchedNames: string[] = Array.isArray(data?.matched_candidates) ? data.matched_candidates : []
+      const matchedSet = new Set(matchedNames.map((n: string) => String(n).toLowerCase()))
+      const matchedCandidates = pool.filter(c => matchedSet.has(String(c.name).toLowerCase()))
+
+      // Optionally enrich with per-candidate detailed match
+      const detailsMap: Record<string, any> = {}
+      let processed = 0
+      for (const cand of matchedCandidates) {
+        try {
+          const payload = {
+            candidate_skills: getCategorizedSkillsForCandidate(cand),
+            job_skills: jobSkills,
+            threshold: 60,
+            debug: false,
+          }
+          const r = await fetch('/api/skill-match', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          if (r.ok) {
+            const d = await r.json()
+            const matchedCount = d?.matched_skills && typeof d.matched_skills === 'object'
+              ? Object.values(d.matched_skills as Record<string, string[]>)
+                  .reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0)
+              : 0
+            const totalRequired = Object.values(jobSkills as Record<string, string[]>)
+              .reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0)
+            detailsMap[cand.name] = { ...d, matched_count: matchedCount, total_required: totalRequired }
+          }
+        } catch {}
+        processed++
+        setSuggestProgress({ processed, total: matchedCandidates.length })
+      }
+
+      // Save suggestions and details
+      setSuggestedCandidates(matchedCandidates)
+      setSuggestInfoMap(detailsMap)
+    } catch (e) {
+      setMatchDebug(prev => ({ ...prev, errors: [...prev.errors, `Multi error: ${String(e)}`] }))
+    } finally {
+      setIsSuggesting(false)
+    }
+  }
+
+  // Auto-run matching (applicants) and suggestions (non-applicants) once per job when data is ready
   useEffect(() => {
     if (!job?.id) return
     if (autoMatchedJobId === job.id) return
-    if (allCandidatesLoading || allCandidates.length === 0) return
+    if (!candidates || candidates.length === 0) return
     // Only run if we have some job skills configured
     const jobSkills = getJobSkillsCategorized()
     if (!jobSkills) return
     ;(async () => {
       try {
         await startMatchingRecommendations()
+        await runCrossJobRecommendations()
       } finally {
         setAutoMatchedJobId(job.id)
       }
@@ -341,29 +435,27 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     return Array.from(new Set(skills.map(s => String(s).trim()).filter(Boolean)))
   }
 
-  // Filter and sort candidates with real backend data
+  // Filter and sort candidates with real backend data (including suggestions)
   const filteredAndSortedCandidates = useMemo(() => {
     if (!candidates) return []
 
     // Base candidates (applied to this job)
-  const baseCandidates = candidates.map(candidate => {
+    const baseCandidates = candidates.map(candidate => {
       const merged: any = mergeCandidateWithReport(candidate, candidateReports)
       const extracted = extractedSkillsMap[merged.name] || []
       const reportSkills = extractSkillsFromScoreDetails(merged.scoreDetails)
       const uiSkills = extracted.length ? extracted : (reportSkills.length ? reportSkills : merged.skills)
-  return { ...merged, uiSkills, matchInfo: matchInfoMap[merged.name] || null }
+      return { ...merged, uiSkills, matchInfo: matchInfoMap[merged.name] || null }
     })
-
-    // Only include user-added suggestions in the main list (keep suggestions separate)
-    const added = addedSuggestedCandidates
-      .filter(rc => !baseCandidates.some(b => b.name === rc.name))
-      .map(rc => ({
-        ...rc,
-        uiSkills: (extractedSkillsMap[rc.name] || rc.skills || []),
-        matchInfo: matchInfoMap[rc.name] || null,
-      }))
-
-    const mergedList = [...baseCandidates, ...added]
+    // Suggested candidates (not applied to this job)
+    const suggested = (suggestedCandidates || []).map(sc => {
+      const merged: any = mergeCandidateWithReport(sc, candidateReports)
+      const extracted = extractedSkillsMap[merged.name] || []
+      const reportSkills = extractSkillsFromScoreDetails(merged.scoreDetails)
+      const uiSkills = extracted.length ? extracted : (reportSkills.length ? reportSkills : merged.skills)
+      return { ...merged, uiSkills, matchInfo: suggestInfoMap[merged.name] || null, isSuggested: true }
+    })
+    const mergedList = [...baseCandidates, ...suggested]
 
     const filtered = mergedList.filter((candidate: any) => {
       const skillsArr: string[] = (candidate as any).uiSkills || candidate.skills || []
@@ -396,38 +488,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     })
 
   return filtered
-  }, [candidates, candidateReports, extractedSkillsMap, addedSuggestedCandidates, matchInfoMap, candidateSearch, sortBy, favoritesOnly, favoriteIds])
+  }, [candidates, candidateReports, extractedSkillsMap, matchInfoMap, candidateSearch, sortBy, favoritesOnly, favoriteIds])
 
   // Sorted suggestions list (exclude already added and already applied)
-  const sortedSuggestions = useMemo(() => {
-    const appliedNames = new Set((candidates || []).map(c => String(c.name).toLowerCase().trim()))
-    const addedNames = new Set(addedSuggestedCandidates.map(c => String(c.name).toLowerCase().trim()))
-    const pool = suggestedCandidates.filter(c => !appliedNames.has(String(c.name).toLowerCase().trim()) && !addedNames.has(String(c.name).toLowerCase().trim()))
-    const enriched = pool.map(c => {
-      const info = matchInfoMap[c.name]
-      const pct = info?.match_percentage ?? 0
-      const matched = info?.matched_count ?? 0
-      const total = info?.total_required ?? 0
-      return { ...c, _pct: pct, _matched: matched, _total: total }
-    })
-    enriched.sort((a, b) => (b._pct - a._pct) || (b._matched - a._matched) || a.name.localeCompare(b.name))
-    return enriched
-  }, [suggestedCandidates, addedSuggestedCandidates, matchInfoMap, candidates])
-
-  const getOrCreateAddedId = (name: string) => {
-    if (addedIdMap[name]) return addedIdMap[name]
-    const newId = 100000 + Object.keys(addedIdMap).length + 1
-    setAddedIdMap(prev => ({ ...prev, [name]: newId }))
-    return newId
-  }
-
-  const handleAddSuggested = (cand: any) => {
-    setAddedSuggestedCandidates(prev => {
-      if (prev.some(c => c.name === cand.name)) return prev
-      const id = getOrCreateAddedId(cand.name)
-      return [...prev, { ...cand, id }]
-    })
-  }
+  // Suggestions removed in this flow
 
   // Pagination for candidates
   const totalPages = Math.ceil(filteredAndSortedCandidates.length / CANDIDATES_PER_PAGE)
@@ -1054,77 +1118,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                       <span className="text-sm font-medium">Favorites only</span>
                     </button>
 
-                    {/* Suggestions count indicator */}
-                    <div className="text-xs text-gray-600 px-2 py-1 rounded border border-gray-200">
-                      Suggestions: {sortedSuggestions.length}
-                    </div>
+                    
                   </div>
                 </div>
-
-                {/* Suggested Candidates Panel */}
-                {sortedSuggestions.length > 0 && (
-                  <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
-                        <Wand2 className="h-4 w-4 text-gray-600" />
-                        Suggested Candidates
-                        <Badge variant="secondary" className="ml-1 bg-gray-100 text-gray-700">{sortedSuggestions.length}</Badge>
-                      </div>
-                      <div className="text-xs text-gray-600">Sorted by match</div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-auto pr-1">
-                      {sortedSuggestions.map((sug, idx) => {
-                        const info = matchInfoMap[sug.name] || {}
-                        const matched = info?.matched_count ?? 0
-                        const total = info?.total_required ?? 0
-                        const pct = Math.round(info?.match_percentage ?? 0)
-                        const matchedSkills = Object.values(info?.matched_skills || {}).flat().filter(Boolean) as string[]
-                        const topSkills = Array.from(new Set(matchedSkills)).slice(0, 3)
-                        const pctBadge = pct >= 80 ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : pct >= 60 ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-amber-100 text-amber-800 border-amber-200'
-                        const barColor = pct >= 80 ? 'bg-emerald-500' : pct >= 60 ? 'bg-blue-500' : 'bg-amber-500'
-                        return (
-                          <div key={sug.name + idx} className="group relative rounded-lg border border-gray-200 bg-gray-50 hover:bg-white hover:border-veo-green/40 transition-shadow shadow-sm hover:shadow-md p-3">
-                            <div className="absolute top-2 right-2">
-                              <Badge className={`${pctBadge} border`}>{pct}%</Badge>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-10 w-10 ring-1 ring-gray-200">
-                                <AvatarImage src={sug.avatar || '/placeholder.svg'} alt={sug.name} />
-                                <AvatarFallback className="bg-gray-100 text-gray-700 text-xs">
-                                  {sug.name.split(' ').map((n: string) => n[0]).join('')}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0">
-                                <div className="text-sm font-semibold text-gray-900 truncate">{sug.name}</div>
-                                <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                                  {sug.position && (
-                                    <Badge variant="outline" className="h-5 px-2 border-gray-300 text-gray-600 bg-white">From: {sug.position}</Badge>
-                                  )}
-                                  <span className="text-xs text-gray-600">Matched {matched}/{total}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="mt-2">
-                              <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
-                                <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
-                              </div>
-                              {topSkills.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-1">
-                                  {topSkills.map((sk, i) => (
-                                    <Badge key={i} variant="secondary" className="text-[10px] bg-gray-100 text-gray-700">{sk}</Badge>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            <div className="mt-3 flex items-center justify-end">
-                              <Button size="sm" className="btn-primary" onClick={() => handleAddSuggested(sug)}>Add</Button>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
+                
 
                 {/* Select All */}
                 <div className="flex items-center justify-between py-3 border-b border-gray-100">
@@ -1194,6 +1191,18 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="font-semibold text-gray-900 text-lg">{applicant.name}</h4>
                           <div className="flex items-center gap-2">
+                            {/* Recommended badge if backend matched */}
+                            {applicant.matchInfo?.is_match && (
+                              <Badge className="bg-purple-100 text-purple-700 border-purple-200" title="Matched by backend">
+                                Recommended
+                              </Badge>
+                            )}
+                            {/* Suggested badge for non-applicants */}
+                            {applicant.isSuggested && (
+                              <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200" title="Suggested candidate">
+                                Suggested
+                              </Badge>
+                            )}
                             {/* Compact match info */}
                             {applicant.matchInfo && (
                               <Badge variant="outline" className="border-gray-300 text-gray-700 bg-gray-50" title="Skill match">
