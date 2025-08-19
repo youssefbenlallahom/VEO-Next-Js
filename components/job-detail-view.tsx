@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import {
   ArrowLeft,
   MapPin,
@@ -47,6 +48,8 @@ import {
   ZoomOut,
   RotateCcw,
   Heart,
+  UserPlus,
+  MinusCircle,
 } from "lucide-react"
 
 // TypeScript type for normalized job description
@@ -94,6 +97,7 @@ interface JobDetailViewProps {
 }
 
 const CANDIDATES_PER_PAGE = 10
+const SUGGESTED_ID_OFFSET = 100000
 
 export function JobDetailView({ jobId }: JobDetailViewProps) {
   const { job, candidates, loading } = useJobWithCandidates(jobId)
@@ -129,6 +133,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [suggestedCandidates, setSuggestedCandidates] = useState<any[]>([])
   const [suggestInfoMap, setSuggestInfoMap] = useState<Record<string, any>>({})
   const [suggestProgress, setSuggestProgress] = useState<{ processed: number; total: number }>({ processed: 0, total: 0 })
+  // User-managed additions from recommendations
+  const [addedCandidates, setAddedCandidates] = useState<any[]>([])
+  const [suggestSearch, setSuggestSearch] = useState("")
+  const [selectedSuggested, setSelectedSuggested] = useState<number[]>([])
 
   // Load Favorites from localStorage per job
   useEffect(() => {
@@ -391,6 +399,45 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     }
   }
 
+  // Load any previously added candidates for this job from localStorage once candidates and allCandidates are ready
+  useEffect(() => {
+    if (!job?.id) return
+    if (!allCandidates || allCandidates.length === 0) return
+    try {
+      const raw = localStorage.getItem(`job-added-candidates:${job.id}`)
+      if (!raw) return
+      const names: string[] = JSON.parse(raw)
+      const appliedNames = new Set((candidates || []).map(c => String(c.name).toLowerCase()))
+      const picked = names
+        .map(n => allCandidates.find(ac => ac.name.toLowerCase() === n.toLowerCase()))
+        .filter(Boolean)
+        .filter((c: any) => !appliedNames.has(String(c!.name).toLowerCase()))
+        .map((c: any) => ({ ...c, id: (c.id ?? 0) + SUGGESTED_ID_OFFSET, isAddedFromSuggestions: true }))
+      setAddedCandidates(picked as any[])
+    } catch {}
+  }, [job?.id, allCandidates, candidates])
+
+  // Persist additions by name only
+  useEffect(() => {
+    if (!job?.id) return
+    try {
+      const names = addedCandidates.map(c => c.name)
+      localStorage.setItem(`job-added-candidates:${job.id}`, JSON.stringify(names))
+    } catch {}
+  }, [addedCandidates, job?.id])
+
+  const addSuggestedCandidate = (cand: any) => {
+    // Avoid duplicates
+    if (addedCandidates.some(c => c.name.toLowerCase() === cand.name.toLowerCase())) return
+    const enhanced = { ...cand, id: (cand.id ?? 0) + SUGGESTED_ID_OFFSET, isAddedFromSuggestions: true }
+    setAddedCandidates(prev => [...prev, enhanced])
+  }
+
+  const removeAddedCandidate = (cand: any) => {
+    setAddedCandidates(prev => prev.filter(c => c.name.toLowerCase() !== String(cand.name).toLowerCase()))
+    setSelectedApplicants(prev => prev.filter(id => id !== ((cand.id ?? 0) + SUGGESTED_ID_OFFSET)))
+  }
+
   // Auto-run matching (applicants) and suggestions (non-applicants) once per job when data is ready
   useEffect(() => {
     if (!job?.id) return
@@ -441,15 +488,15 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       const uiSkills = extracted.length ? extracted : (reportSkills.length ? reportSkills : merged.skills)
       return { ...merged, uiSkills, matchInfo: matchInfoMap[merged.name] || null }
     })
-    // Suggested candidates (not applied to this job)
-    const suggested = (suggestedCandidates || []).map(sc => {
+    // Added candidates from recommendations (treated as part of this list)
+    const added = (addedCandidates || []).map(sc => {
       const merged: any = mergeCandidateWithReport(sc, candidateReports)
       const extracted = extractedSkillsMap[merged.name] || []
       const reportSkills = extractSkillsFromScoreDetails(merged.scoreDetails)
       const uiSkills = extracted.length ? extracted : (reportSkills.length ? reportSkills : merged.skills)
-      return { ...merged, uiSkills, matchInfo: suggestInfoMap[merged.name] || null, isSuggested: true }
+      return { ...merged, uiSkills, matchInfo: suggestInfoMap[merged.name] || null, isSuggested: false, isAddedFromSuggestions: true }
     })
-    const mergedList = [...baseCandidates, ...suggested]
+    const mergedList = [...baseCandidates, ...added]
 
     const filtered = mergedList.filter((candidate: any) => {
       const skillsArr: string[] = (candidate as any).uiSkills || candidate.skills || []
@@ -576,9 +623,11 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       
       // Fetch and append all files
       let fileCount = 0
+      // Compose complete list including added candidates
+      const fullList = [...(candidates as any[]), ...addedCandidates]
       for (let i = 0; i < selectedApplicants.length; i++) {
         const candidateId = selectedApplicants[i]
-        const candidate = candidates.find((c: any) => c.id === candidateId)
+        const candidate = fullList.find((c: any) => c.id === candidateId)
         if (!candidate) continue
         
         // Get the CV URL using the API route
@@ -648,9 +697,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       
       // Fetch and append all files
       let fileCount = 0;
+      const fullList = [...(candidates as any[]), ...addedCandidates]
       for (let i = 0; i < selectedApplicants.length; i++) {
         const candidateId = selectedApplicants[i];
-        const candidate = candidates.find((c: any) => c.id === candidateId);
+        const candidate = fullList.find((c: any) => c.id === candidateId);
         if (!candidate) continue;
         
         // Get the CV URL using the API route
@@ -1172,6 +1222,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                         checked={selectedApplicants.includes(applicant.id)}
                         onCheckedChange={(checked) => handleApplicantSelect(applicant.id, checked as boolean)}
                       />
+                      {/* Avatar */}
                       <Avatar className={`h-12 w-12 ring-2 transition-all ring-gray-100 hover:ring-veo-green/30`}>
                         <AvatarImage src={applicant.avatar || "/placeholder.svg"} alt={applicant.name} />
                         <AvatarFallback className="bg-veo-green/10 text-veo-green font-semibold">
@@ -1191,10 +1242,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                                 Recommended
                               </Badge>
                             )}
-                            {/* Suggested badge for non-applicants */}
-                            {applicant.isSuggested && (
-                              <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200" title="Suggested candidate">
-                                Suggested
+                            {/* Added from suggestions tag */}
+                            {applicant.isAddedFromSuggestions && (
+                              <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200" title="Added from recommendations">
+                                Added
                               </Badge>
                             )}
                             {/* Compact match info */}
@@ -1216,6 +1267,17 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                                 fill={favoriteIds.includes(applicant.id) ? 'currentColor' : 'none'}
                               />
                             </button>
+                            {/* Remove from added list */}
+                            {applicant.isAddedFromSuggestions && (
+                              <button
+                                type="button"
+                                onClick={() => removeAddedCandidate(applicant)}
+                                className="p-2 rounded-full border bg-white border-gray-200 hover:border-red-300 hover:bg-red-50 transition"
+                                title="Remove from this job"
+                              >
+                                <MinusCircle className="h-4 w-4 text-red-500" />
+                              </button>
+                            )}
                             {applicant.hasAIReport ? (
                               <Badge className={`${getScoreColor(applicant.aiScore)} border font-bold`}>
                                 {applicant.aiScore}/10
@@ -1355,13 +1417,19 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Total Applicants</span>
                   <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                    {candidates.length}
+                    {candidates.length + addedCandidates.length}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Favorites</span>
                   <Badge variant="secondary" className="bg-pink-50 text-pink-700">
                     {favoriteIds.length}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Added from Recos</span>
+                  <Badge variant="secondary" className="bg-indigo-100 text-indigo-800">
+                    {addedCandidates.length}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
@@ -1475,6 +1543,124 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
         onClose={() => setShowJobSkillsModal(false)}
         job={job}
       />
+
+      {/* Recommended candidates from other jobs */}
+      {job && (
+        <Card className="shadow-soft animate-slideUp">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Wand2 className="h-5 w-5 text-indigo-600" />
+                Recommended from other jobs
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Search recommendations..."
+                  value={suggestSearch}
+                  onChange={(e) => setSuggestSearch(e.target.value)}
+                  className="h-9 w-56 border-gray-200"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="btn-secondary"
+                  onClick={() => runCrossJobRecommendations()}
+                  disabled={isSuggesting}
+                >
+                  <Wand2 className="h-4 w-4 mr-1" />
+                  {isSuggesting ? `Matching (${suggestProgress.processed}/${suggestProgress.total})` : 'Refresh' }
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {suggestedCandidates.length === 0 && !isSuggesting && (
+              <div className="text-sm text-gray-600">No recommendations yet. Use Refresh to run matching.</div>
+            )}
+            {/* Group by source position (their current job) */}
+            <div className="space-y-2">
+              {(() => {
+                // Exclude those already added or already applied
+                const appliedNames = new Set((candidates || []).map(c => c.name.toLowerCase()))
+                const addedNames = new Set(addedCandidates.map(c => c.name.toLowerCase()))
+                const filtered = (suggestedCandidates || [])
+                  .filter(c => !appliedNames.has(c.name.toLowerCase()))
+                  .filter(c => !addedNames.has(c.name.toLowerCase()))
+                  .filter(c => {
+                    if (!suggestSearch) return true
+                    const skillsArr: string[] = (c.uiSkills || c.skills || [])
+                    return (
+                      c.name.toLowerCase().includes(suggestSearch.toLowerCase()) ||
+                      (c.position || '').toLowerCase().includes(suggestSearch.toLowerCase()) ||
+                      skillsArr.some(s => s.toLowerCase().includes(suggestSearch.toLowerCase()))
+                    )
+                  })
+                const groups: Record<string, any[]> = {}
+                for (const cand of filtered) {
+                  const key = cand.position || 'Unknown Source'
+                  if (!groups[key]) groups[key] = []
+                  groups[key].push(cand)
+                }
+                const entries = Object.entries(groups)
+                if (entries.length === 0) {
+                  return (
+                    <div className="text-sm text-gray-500">No matching suggestions.</div>
+                  ) as any
+                }
+                return (
+                  <Accordion type="multiple" className="w-full">
+                    {entries.map(([group, list]) => (
+                      <AccordionItem key={group} value={group}>
+                        <AccordionTrigger className="text-sm font-medium">
+                          From: {group} <span className="ml-2 text-gray-500">({list.length})</span>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-2">
+                            {list.map((c: any, idx: number) => (
+                              <div key={c.name + idx} className="flex items-center justify-between p-3 border rounded-md bg-white">
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarImage src={c.avatar || '/placeholder.svg'} alt={c.name} />
+                                    <AvatarFallback>{c.name.split(' ').map((n:string)=>n[0]).join('')}</AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-gray-900">{c.name}</span>
+                                      <Badge variant="outline" className="text-xs">{c.position}</Badge>
+                                      {suggestInfoMap[c.name] && (
+                                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700">
+                                          Matched {suggestInfoMap[c.name].matched_count}/{suggestInfoMap[c.name].total_required}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {(c.uiSkills || c.skills || []).slice(0, 4).map((s: string) => (
+                                        <Badge key={s} variant="secondary" className="text-xs bg-gray-100 text-gray-700">{s}</Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button variant="outline" size="sm" className="btn-secondary bg-transparent" onClick={() => viewCV(c)}>
+                                    <Eye className="h-3 w-3 mr-1" /> CV
+                                  </Button>
+                                  <Button size="sm" className="btn-primary" onClick={() => addSuggestedCandidate(c)}>
+                                    <UserPlus className="h-3 w-3 mr-1" /> Add
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                ) as any
+              })()}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Analysis Progress Modal */}
       {isAnalyzing && (
