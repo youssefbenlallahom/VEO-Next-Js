@@ -21,6 +21,7 @@ import {
 interface JobSkillsModalProps {
   isOpen: boolean
   onClose: () => void
+  onCriteriaSaved?: () => void  // Add callback to refresh parent
   job: {
     title: string
     description: string
@@ -36,7 +37,7 @@ interface Barem {
   jobTitle?: string
 }
 
-export function JobSkillsModal({ isOpen, onClose, job }: JobSkillsModalProps) {
+export function JobSkillsModal({ isOpen, onClose, onCriteriaSaved, job }: JobSkillsModalProps) {
   const { toast } = useToast()
   
   // Barem creation states
@@ -55,43 +56,79 @@ export function JobSkillsModal({ isOpen, onClose, job }: JobSkillsModalProps) {
   // Load existing criteria for this job when modal opens
   React.useEffect(() => {
     if (isOpen && job) {
-      // Try to load existing criteria for this job
-      const existingBarems = JSON.parse(localStorage.getItem('job-skills-barems') || '[]')
-      const existingCriteria = existingBarems.find((b: any) => b.jobTitle === job.title)
-      
-      if (existingCriteria) {
-        console.log('📋 Loading existing criteria for job:', job.title)
-        // Load the existing weights and skills
-        setCategorizedSkills(existingCriteria.categorizedSkills || {})
-        
-        // Separate category and language weights
-        const cats = Object.keys(existingCriteria.categorizedSkills || {}).filter((cat) => cat !== 'Languages')
-        const langs = existingCriteria.categorizedSkills?.['Languages'] || []
-        
-        const catWeights: Record<string, number> = {}
-        const langWeights: Record<string, number> = {}
-        
-        // Distribute the saved weights
-        Object.entries(existingCriteria.skills || {}).forEach(([skill, weight]) => {
-          if (langs.includes(skill)) {
-            langWeights[skill] = weight as number
-          } else if (cats.includes(skill)) {
-            catWeights[skill] = weight as number
+      // Try to load existing criteria for this job from API
+      const fetchExistingCriteria = async () => {
+        try {
+          const response = await fetch(`/api/job-barem/${encodeURIComponent(job.title)}`)
+          
+          if (response.ok) {
+            const data = await response.json()
+            console.log('📋 Loading existing criteria for job:', job.title)
+            
+            // Transform the API response to extract weights and categorized skills
+            const weights: Record<string, number> = {}
+            const categorizedSkills: Record<string, string[]> = {}
+            
+            // Extract from the new barem structure
+            Object.entries(data.barem).forEach(([category, categoryData]: [string, any]) => {
+              weights[category] = categoryData.weight
+              
+              if (categoryData.type === "category" && categoryData.skills) {
+                categorizedSkills[category] = categoryData.skills
+              } else if (categoryData.type === "individual") {
+                // For individual skills like languages, create a Languages category if it doesn't exist
+                if (category.includes("Level") || category.includes("Language")) {
+                  if (!categorizedSkills['Languages']) {
+                    categorizedSkills['Languages'] = []
+                  }
+                  categorizedSkills['Languages'].push(category)
+                }
+              }
+            })
+            
+            setCategorizedSkills(categorizedSkills)
+            
+            // Separate category and language weights
+            const cats = Object.keys(categorizedSkills).filter((cat) => cat !== 'Languages')
+            const langs = categorizedSkills['Languages'] || []
+            
+            const catWeights: Record<string, number> = {}
+            const langWeights: Record<string, number> = {}
+            
+            // Distribute the saved weights
+            Object.entries(weights).forEach(([skill, weight]) => {
+              if (langs.includes(skill) || skill.includes("Level") || skill.includes("Language")) {
+                langWeights[skill] = weight as number
+              } else if (cats.includes(skill)) {
+                catWeights[skill] = weight as number
+              }
+            })
+            
+            setCategoryWeights(catWeights)
+            setLanguageWeights(langWeights)
+            setBaremName(`${job.title} - Assessment Criteria`)
+            setBaremDescription(`Assessment criteria for ${job.title} position`)
+          } else if (response.status === 404) {
+            // No existing criteria, reset for new criteria
+            console.log('📋 No existing criteria found for job:', job.title)
+            setCategoryWeights({})
+            setLanguageWeights({})
+            setCategorizedSkills({})
+            setBaremName("")
+            setBaremDescription("")
           }
-        })
-        
-        setCategoryWeights(catWeights)
-        setLanguageWeights(langWeights)
-        setBaremName(existingCriteria.name || `${job.title} - Assessment Criteria`)
-        setBaremDescription(existingCriteria.description || `Assessment criteria for ${job.title} position`)
-      } else {
-        // Reset for new criteria
-        setCategoryWeights({})
-        setLanguageWeights({})
-        setCategorizedSkills({})
-        setBaremName("")
-        setBaremDescription("")
+        } catch (error) {
+          console.error('Error fetching existing criteria:', error)
+          // Reset on error
+          setCategoryWeights({})
+          setLanguageWeights({})
+          setCategorizedSkills({})
+          setBaremName("")
+          setBaremDescription("")
+        }
       }
+      
+      fetchExistingCriteria()
     } else if (!isOpen) {
       // Reset when closing
       setCategoryWeights({})
@@ -260,6 +297,7 @@ export function JobSkillsModal({ isOpen, onClose, job }: JobSkillsModalProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          job_title: job?.title || '',
           skills_weights,
           categorized_skills: categorizedSkills,
         }),
@@ -278,27 +316,13 @@ export function JobSkillsModal({ isOpen, onClose, job }: JobSkillsModalProps) {
 
       setCurrentBarem(baremData.barem)
 
-      // Save to localStorage with job title as unique identifier
-      const existingBarems = JSON.parse(localStorage.getItem('job-skills-barems') || '[]')
+      console.log('✅ BAREM SAVED SUCCESSFULLY!')
+      console.log('Saved barem data:', JSON.stringify(baremData, null, 2))
       
-      // Remove any existing criteria for this job
-      const filteredBarems = existingBarems.filter((b: any) => b.jobTitle !== job.title)
-      
-      // Add the new criteria for this job
-      const savedBarem = {
-        id: `${job.title}-${Date.now()}`,
-        name: baremName,
-        description: baremDescription,
-        skills: skills_weights,
-        createdDate: new Date().toISOString(),
-        jobTitle: job.title,
-        categorizedSkills,
+      // Notify parent component that criteria was saved
+      if (onCriteriaSaved) {
+        onCriteriaSaved()
       }
-
-      filteredBarems.push(savedBarem)
-      localStorage.setItem('job-skills-barems', JSON.stringify(filteredBarems))
-
-      console.log('💾 Saved criteria for job:', job.title)
       
       // Close modal after successful save
       onClose()

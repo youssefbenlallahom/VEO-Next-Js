@@ -102,6 +102,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const { candidateReports, loading: reportsLoading } = useCandidateReports(job?.title)
   const [selectedApplicants, setSelectedApplicants] = useState<number[]>([])
   const [showJobSkillsModal, setShowJobSkillsModal] = useState(false)
+  const [assessmentCriteriaKey, setAssessmentCriteriaKey] = useState(0) // For forcing re-render
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisProgress, setAnalysisProgress] = useState(0)
 
@@ -1361,6 +1362,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
           {/* Assessment Criteria */}
           {job && (
             <AssessmentCriteriaSidebar
+              key={assessmentCriteriaKey}
               jobTitle={job.title}
               onConfigureClick={() => setShowJobSkillsModal(true)}
             />
@@ -1430,6 +1432,9 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       <JobSkillsModal
         isOpen={showJobSkillsModal}
         onClose={() => setShowJobSkillsModal(false)}
+        onCriteriaSaved={() => {
+          setAssessmentCriteriaKey(prev => prev + 1) // Force refresh of assessment criteria
+        }}
         job={job}
       />
 
