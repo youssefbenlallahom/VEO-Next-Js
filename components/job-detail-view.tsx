@@ -255,6 +255,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     const multiPayload = {
       candidates: pool.map(c => ({ name: c.name, skills: getCategorizedSkillsForCandidate(c) })),
       job_skills: jobSkills,
+      threshold: 40,
       debug: false,
     }
 

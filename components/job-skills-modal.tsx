@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useToast } from "@/hooks/use-toast"
 import {
   Brain,
   Wand2,
@@ -36,6 +37,8 @@ interface Barem {
 }
 
 export function JobSkillsModal({ isOpen, onClose, job }: JobSkillsModalProps) {
+  const { toast } = useToast()
+  
   // Barem creation states
   const [baremName, setBaremName] = useState("")
   const [baremDescription, setBaremDescription] = useState("")
@@ -131,6 +134,11 @@ export function JobSkillsModal({ isOpen, onClose, job }: JobSkillsModalProps) {
         console.error('Extract skills API failed:', extractRes.status, extractRes.statusText)
         const errorText = await extractRes.text()
         console.error('Error response body:', errorText)
+        toast({
+          title: "Service Unavailable",
+          description: "Skills extraction service is not available. Please add skills manually using the form below.",
+          variant: "destructive",
+        })
         return
       }
       
@@ -178,6 +186,11 @@ export function JobSkillsModal({ isOpen, onClose, job }: JobSkillsModalProps) {
       setLanguageWeights({})
       setCategorizedSkills({})
       setCurrentBarem(null)
+      toast({
+        title: "Service Error",
+        description: "Unable to connect to skills extraction service. Please ensure the backend is running or add skills manually.",
+        variant: "destructive",
+      })
     } finally {
       setIsExtracting(false)
     }
