@@ -38,20 +38,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'job_skills object is required' }, { status: 400 })
     }
 
+    // Enforce max candidates to avoid backend overload
+    const limitedCandidates = Array.isArray(payload.candidates)
+      ? payload.candidates.slice(0, 25)
+      : []
+
     const normalizedPayload: Required<Omit<MultiPayload, 'debug'>> & { debug?: boolean } = {
       job_title: payload.job_title,
-      candidates: payload.candidates,
+      candidates: limitedCandidates,
       job_skills: payload.job_skills,
       threshold: typeof payload.threshold === 'number' ? payload.threshold : 40,
       ...(debug ? { debug: true } : {}),
     }
 
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000'
+    // Add a 60s timeout to avoid long hangs
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 60000)
     const res = await fetch(`${backendUrl}/analyze-skill-match-multi`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(normalizedPayload),
+      signal: controller.signal,
     })
+    clearTimeout(timeout)
 
     let data: any
     try {
