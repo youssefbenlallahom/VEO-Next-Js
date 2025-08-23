@@ -325,8 +325,15 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
         console.error('❌ Multi HTTP error:', res.status, txt)
         return
       }
-      const data = await res.json()
-      const matchedNames: string[] = Array.isArray(data?.matched_candidates) ? data.matched_candidates : []
+      // After backend persists recommended names, read them from the new endpoint
+      const recRes = await fetch(`/api/job-recommended-candidates/${encodeURIComponent(job.title)}`)
+      if (!recRes.ok) {
+        const txt = await recRes.text().catch(() => '')
+        console.error('❌ Read recommended HTTP error:', recRes.status, txt)
+        return
+      }
+      const recData = await recRes.json()
+      const matchedNames: string[] = Array.isArray(recData?.recommended_candidates) ? recData.recommended_candidates : []
       const matchedSet = new Set(matchedNames.map((n: string) => String(n).toLowerCase()))
       const matchedCandidates = pool.filter(c => matchedSet.has(String(c.name).toLowerCase()))
 
