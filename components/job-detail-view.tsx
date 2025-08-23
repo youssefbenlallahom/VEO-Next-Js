@@ -182,8 +182,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
 
   // Pool now comes from useAllCandidates hook (merged assets + DB)
 
-  // Build categorized job skills from saved assessment criteria
-  const getJobSkillsCategorized = (): Record<string, string[]> | null => {
+  // Build categorized job skills using job-skills API
+  const getJobSkillsCategorized = async (): Promise<Record<string, string[]> | null> => {
     // First, try saved criteria
     const criteria = getJobAssessmentCriteria()
     if (criteria) {
@@ -194,6 +194,32 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
         return { General: criteria.skills as string[] }
       }
     }
+    
+    // Try to get skills from job-skills API if we have a job title
+    if (job?.title) {
+      try {
+        const res = await fetch(`/api/job-skills/${encodeURIComponent(job.title)}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        })
+        
+        if (res.ok) {
+          const data = await res.json()
+          // The API returns the required_skills directly as categorized skills
+          if (data && typeof data === 'object') {
+            console.log('📋 Job skills fetched from API:', data)
+            return data as Record<string, string[]>
+          }
+        } else if (res.status === 404) {
+          console.warn('No skills data found for job title:', job.title)
+        } else {
+          console.warn('Job skills API request failed:', res.status)
+        }
+      } catch (error) {
+        console.warn('Error fetching job skills from API:', error)
+      }
+    }
+    
     // As a fallback, derive skills from job requirements text by tokenizing keywords
     if (job?.requirements?.length) {
       // Filter out common stopwords/noise to keep only meaningful skill tokens
@@ -240,25 +266,53 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
 
   // Find recommended non-applicants using the multi endpoint
   const runCrossJobRecommendations = async () => {
-    const jobSkills = getJobSkillsCategorized()
-    if (!jobSkills) return
-    if (!allCandidates || !candidates) return
+    console.log('🔍 Starting cross-job recommendations...')
+    
+    // Get job skills from API first
+    const jobSkills = await getJobSkillsCategorized()
+    if (!jobSkills) {
+      console.warn('❌ No job skills found, cannot run recommendations')
+      return
+    }
+    
+    console.log('✅ Job skills loaded:', jobSkills)
+    if (!job?.title) {
+      console.warn('❌ Job title is missing, cannot run recommendations')
+      return
+    }
+    
+    if (!allCandidates || !candidates) {
+      console.warn('❌ Candidates data not ready')
+      return
+    }
 
     // Pool = all candidates not already applied to this job (compare by name, case-insensitive)
     const appliedNames = new Set((candidates || []).map(c => String(c.name).toLowerCase()))
     const pool = (allCandidates || []).filter(c => !appliedNames.has(String(c.name).toLowerCase()))
-    if (pool.length === 0) return
+    if (pool.length === 0) {
+      console.warn('❌ No candidate pool available for recommendations')
+      return
+    }
 
+    console.log(`🎯 Found ${pool.length} candidates in pool for matching`)
+    
     setIsSuggesting(true)
     setSuggestProgress({ processed: 0, total: 1 }) // Single multi-call
 
     // Prepare payload for multi endpoint
     const multiPayload = {
+      job_title: job.title,
       candidates: pool.map(c => ({ name: c.name, skills: getCategorizedSkillsForCandidate(c) })),
       job_skills: jobSkills,
       threshold: 40,
       debug: false,
     }
+
+    console.log('📤 Sending to skill-match-multi API with payload:', {
+      candidateCount: multiPayload.candidates.length,
+      jobSkills: Object.keys(jobSkills),
+      threshold: multiPayload.threshold
+    })
 
     try {
       const res = await fetch('/api/skill-match-multi', {
@@ -268,7 +322,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       })
       if (!res.ok) {
         const txt = await res.text().catch(() => '')
-        console.error('Multi HTTP error:', res.status, txt)
+        console.error('❌ Multi HTTP error:', res.status, txt)
         return
       }
       const data = await res.json()
@@ -276,12 +330,14 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       const matchedSet = new Set(matchedNames.map((n: string) => String(n).toLowerCase()))
       const matchedCandidates = pool.filter(c => matchedSet.has(String(c.name).toLowerCase()))
 
+      console.log(`✅ Skill matching complete: ${matchedCandidates.length} candidates matched`)
+      
       setSuggestProgress({ processed: 1, total: 1 }) // Complete
 
       // Save suggestions (no need for individual detailed matching)
       setSuggestedCandidates(matchedCandidates)
     } catch (e) {
-      console.error('Multi error:', String(e))
+      console.error('❌ Multi error:', String(e))
     } finally {
       setIsSuggesting(false)
     }
@@ -331,11 +387,17 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     if (!job?.id) return
     if (autoMatchedJobId === job.id) return
     if (!candidates || candidates.length === 0) return
-    // Only run if we have some job skills configured
-    const jobSkills = getJobSkillsCategorized()
-    if (!jobSkills) return
+    
+    // Check if we have job skills configured (async)
     ;(async () => {
       try {
+        const jobSkills = await getJobSkillsCategorized()
+        if (!jobSkills) {
+          console.log('⏳ No job skills available yet, skipping auto-recommendations')
+          return
+        }
+        
+        console.log('🚀 Auto-running cross-job recommendations for job:', job.title)
         // Only run cross-job recommendations, not matching for current applicants
         await runCrossJobRecommendations()
       } finally {

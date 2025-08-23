@@ -5,7 +5,9 @@ export async function GET(
   { params }: { params: { job_title: string } }
 ) {
   try {
-    const jobTitle = decodeURIComponent(params.job_title)
+    // Await the params object first (Next.js 15+ requirement)
+    const { job_title } = await params
+    const jobTitle = decodeURIComponent(job_title)
     
     const res = await fetch(`http://localhost:8000/job-barem/${encodeURIComponent(jobTitle)}`, {
       method: 'GET',
