@@ -202,9 +202,9 @@ export function AssessmentCriteriaSidebar({ jobTitle, onConfigureClick }: Assess
   const categories = Object.keys(criteria.categorizedSkills || {}).filter(cat => cat !== 'Languages')
   const languages = criteria.categorizedSkills?.['Languages'] || []
   
-  // Also identify language skills directly from the skills list (those containing "Level")
+  // Also identify language skills directly from the skills list (those containing "Language" but not "Experience")
   const individualLanguages = Object.keys(criteria.skills).filter(skill => 
-    skill.includes("Level") || skill.includes("Language")
+    (skill.includes("Level") || skill.includes("Language")) && !skill.includes("Experience")
   )
   
   // Combine both language sources
