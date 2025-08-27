@@ -1,0 +1,50 @@
+{
+  "sections": [
+    {
+      "title": "Responsibilities",
+      "categories": [
+        {
+          "title": null,
+          "items": [
+            "Development of reports, dashboards, and data models using IBM Cognos",
+            "Gathering and formalizing business requirements",
+            "Creation and optimization of Framework Manager packages",
+            "Participation in BI governance and data architecture",
+            "Technology watch and continuous improvement",
+            "Support, training, and mentoring of junior profiles",
+            "Collaboration with DWH & ETL teams"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Technical Skills",
+      "categories": [
+        {
+          "title": null,
+          "items": [
+            "IBM Cognos (Report Studio, Dashboarding, Framework Manager, Data Sets, Data Modules)",
+            "SQL (Oracle, SQL Server, Postgres)",
+            "Data modeling (Snowflake, Star Schema)",
+            "Microsoft Excel (advanced level)",
+            "Agile methodology (desired)"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Requirements",
+      "categories": [
+        {
+          "title": null,
+          "items": [
+            "5+ years of experience in BI, including at least 3 years with Cognos",
+            "An IBM Cognos certification is a plus",
+            "Knowledge of Power BI / Tableau is appreciated",
+            "French B2 / English B2"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+PyMuPDF
+crewai
+crewai-tools
+python-dotenv
+streamlit
+PyPDF2
+chromadb
+google-genai
+sqlalchemy
+uvicorn
+fastapi
+python-multipart
+azure-ai-inference
+azure-core
