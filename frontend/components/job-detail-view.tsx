@@ -592,107 +592,113 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
 
   // Direct analysis without showing modal
   const startDirectAnalysis = async () => {
-    const criteria = getJobAssessmentCriteria()
-    
-    if (!criteria) {
-      alert('No assessment criteria found for this job. Please configure job skills first.')
-      return
+    let criteria = getJobAssessmentCriteria();
+    // If not found in localStorage, fetch from backend
+    if (!criteria && job?.title) {
+      try {
+        const res = await fetch(`/api/job-barem/${encodeURIComponent(job.title)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && typeof data === 'object' && data.barem && Object.keys(data.barem).length > 0) {
+            criteria = {
+              jobTitle: job.title,
+              skills: Object.keys(data.barem),
+              categorizedSkills: data.barem
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch assessment criteria from backend:', e);
+      }
     }
-
-    console.log('🚀 STARTING DIRECT AI ANALYSIS!')
-    console.log('📋 Using criteria for job:', job.title)
-    
-    setIsAnalyzing(true)
-    setAnalysisProgress(0)
-    
+    if (!criteria) {
+      alert('No assessment criteria found for this job. Please configure job skills first.');
+      return;
+    }
+    console.log('🚀 STARTING DIRECT AI ANALYSIS!');
+    console.log('📋 Using criteria for job:', job.title);
+    setIsAnalyzing(true);
+    setAnalysisProgress(0);
     try {
       // Prepare barem data
       const baremData = {
         skills: criteria.skills,
         categorized_skills: criteria.categorizedSkills || {}
-      }
-
+      };
       // Gather all selected CVs as blobs and send in one FormData
-      const formData = new FormData()
-      formData.append('job_title', job.title)
-      formData.append('job_description', job.description)
-      formData.append('barem', JSON.stringify(baremData))
-      
+      const formData = new FormData();
+      formData.append('job_title', job.title);
+      formData.append('job_description', job.description);
+      formData.append('barem', JSON.stringify(baremData));
       // Fetch and append all files
-      let fileCount = 0
+      let fileCount = 0;
       // Use unified list that includes applied, added, and recommended with correct IDs
-      const fullList = [...filteredAndSortedCandidates]
+      const fullList = [...filteredAndSortedCandidates];
       for (let i = 0; i < selectedApplicants.length; i++) {
-        const candidateId = selectedApplicants[i]
-        const candidate = fullList.find((c: any) => c.id === candidateId)
-        if (!candidate) continue
-        
+        const candidateId = selectedApplicants[i];
+        const candidate = fullList.find((c: any) => c.id === candidateId);
+        if (!candidate) continue;
         // Get the CV URL using the API route
-        const cvUrl = getCVUrl(candidate)
-        
+        const cvUrl = getCVUrl(candidate);
         try {
           // Try preferred URL (recommended folder for recommended/added candidates)
-          let response = await fetch(cvUrl)
+          let response = await fetch(cvUrl);
           if (!response.ok) {
-            console.warn('CV file not found at preferred URL:', cvUrl)
+            console.warn('CV file not found at preferred URL:', cvUrl);
             // Fallback: try using the original resumeUrl job/filename
             if (candidate?.resumeUrl) {
-              const raw = String(candidate.resumeUrl).replace(/^\/(api\/)?cv\//, '')
-              const parts = raw.split('/')
+              const raw = String(candidate.resumeUrl).replace(/^\/(api\/)?cv\//, '');
+              const parts = raw.split('/');
               if (parts.length >= 2) {
-                const originalJob = parts[0]
-                const fileOnly = parts.slice(1).join('/')
-                const altUrl = `/api/cv/${encodeURIComponent(originalJob)}/${fileOnly}`
-                console.log('Trying fallback CV URL:', altUrl)
-                response = await fetch(altUrl)
+                const originalJob = parts[0];
+                const fileOnly = parts.slice(1).join('/');
+                const altUrl = `/api/cv/${encodeURIComponent(originalJob)}/${fileOnly}`;
+                console.log('Trying fallback CV URL:', altUrl);
+                response = await fetch(altUrl);
                 if (!response.ok) {
-                  console.warn('Fallback CV URL also failed:', altUrl)
-                  continue
+                  console.warn('Fallback CV URL also failed:', altUrl);
+                  continue;
                 }
               } else {
-                continue
+                continue;
               }
             } else {
-              continue
+              continue;
             }
           }
-          const blob = await response.blob()
-          const filename = candidate.name.replace(/\s+/g, '_').toLowerCase() + '.pdf'
-          formData.append('files', blob, filename)
-          fileCount++
+          const blob = await response.blob();
+          const filename = candidate.name.replace(/\s+/g, '_').toLowerCase() + '.pdf';
+          formData.append('files', blob, filename);
+          fileCount++;
         } catch (e) {
-          console.error('Error fetching CV file (after fallbacks):', cvUrl, e)
+          console.error('Error fetching CV file (after fallbacks):', cvUrl, e);
         }
-        setAnalysisProgress(Math.round(((i + 1) / selectedApplicants.length) * 80))
+        setAnalysisProgress(Math.round(((i + 1) / selectedApplicants.length) * 80));
       }
-      
       if (fileCount === 0) {
-        alert('No CV files found. Make sure your CVs are in assets/jobs/<Job Title>[/recommended]/<filename>.pdf')
-        setIsAnalyzing(false)
-        return
+        alert('No CV files found. Make sure your CVs are in assets/jobs/<Job Title>[/recommended]/<filename>.pdf');
+        setIsAnalyzing(false);
+        return;
       }
-      
-      console.log('📤 Sending analysis request with', fileCount, 'files')
+      console.log('📤 Sending analysis request with', fileCount, 'files');
       const analyzeResponse = await fetch('/api/analyze', {
         method: 'POST',
         body: formData,
-      })
-      
+      });
       if (!analyzeResponse.ok) {
-        console.error('Analysis API failed:', analyzeResponse.status, analyzeResponse.statusText)
-        const errorText = await analyzeResponse.text()
-        console.error('Error response body:', errorText)
+        console.error('Analysis API failed:', analyzeResponse.status, analyzeResponse.statusText);
+        const errorText = await analyzeResponse.text();
+        console.error('Error response body:', errorText);
       } else {
-        const analyzeResult = await analyzeResponse.json()
-        console.log('✅ Analysis completed successfully')
-        console.log('Analysis result:', analyzeResult)
+        const analyzeResult = await analyzeResponse.json();
+        console.log('✅ Analysis completed successfully');
+        console.log('Analysis result:', analyzeResult);
       }
-      setAnalysisProgress(100)
-      
+      setAnalysisProgress(100);
     } catch (err) {
-      console.error('Error during AI analysis:', err)
+      console.error('Error during AI analysis:', err);
     } finally {
-      setIsAnalyzing(false)
+      setIsAnalyzing(false);
     }
   }
 

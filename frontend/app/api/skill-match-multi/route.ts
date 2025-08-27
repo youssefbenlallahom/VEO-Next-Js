@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000'
     // Add a 60s timeout to avoid long hangs
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 60000)
+    const timeout = setTimeout(() => controller.abort(), 600000)
     const res = await fetch(`${backendUrl}/analyze-skill-match-multi`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
