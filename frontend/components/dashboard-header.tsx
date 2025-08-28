@@ -22,14 +22,6 @@ export function DashboardHeader() {
         </div>
 
         <div className="flex items-center gap-4 animate-slideIn">
-          <div className="relative form-field">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Search candidates, jobs..."
-              className="pl-10 w-80 h-10 border-gray-200 focus:border-veo-green focus:ring-veo-green/20"
-            />
-          </div>
-
           <Button
             variant="ghost"
             size="icon"

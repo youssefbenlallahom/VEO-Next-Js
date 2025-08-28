@@ -340,10 +340,9 @@ export function CandidatesOverview() {
     <div className="space-y-8 animate-fadeIn">
       {/* Header */}
       <div className="flex items-center justify-between">
-      <div className="flex flex-col items-center justify-center text-center space-y-2 animate-slideDown">
-  <h1 className="text-3xl font-bold text-gray-900 tracking-tight">All Candidates</h1>
-  
-</div>
+        <div className="flex flex-col items-center justify-center text-center space-y-2 animate-slideDown">
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">All Candidates</h1>
+        </div>
         <div className="flex gap-3">
           {selectedCandidates.length > 0 && (
             <DropdownMenu>
@@ -369,28 +368,25 @@ export function CandidatesOverview() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button className="bg-veo-green hover:bg-veo-green/90 shadow-md hover:shadow-lg transition-all">
-            <Download className="h-4 w-4 mr-2" />
-            Export All
-          </Button>
+          {/* Export All button removed */}
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {[
-  { title: "Total Candidates", value: filteredStats.totalCandidates, icon: Users, color: "blue" },
-  { title: "Analyzed", value: filteredStats.analyzedCandidates, icon: Brain, color: "green" },
-  { title: "Not Analyzed", value: filteredStats.notAnalyzedCandidates, icon: AlertCircle, color: "amber" },
-  { title: "Avg. AI Score", value: filteredStats.avgScore > 0 ? `${filteredStats.avgScore}/10` : "N/A", icon: TrendingUp, color: "purple" },
-].map((stat, index) => (
+      <div className="w-full flex justify-center">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+        {[ 
+          { title: "Total Candidates", value: filteredStats.totalCandidates, icon: Users, color: "blue" },
+          { title: "Analyzed", value: filteredStats.analyzedCandidates, icon: Brain, color: "green" },
+          { title: "Not Analyzed", value: filteredStats.notAnalyzedCandidates, icon: AlertCircle, color: "amber" },
+        ].map((stat, index) => (
           <Card
             key={stat.title}
-            className="hover:shadow-lg transition-all duration-300 animate-slideUp"
+            className="hover:shadow-lg transition-all duration-300 animate-slideUp w-full"
             style={{ animationDelay: `${index * 0.1}s` }}
           >
             <CardContent className="p-6">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between w-full">
                 <div>
                   <p className="text-sm font-medium text-gray-600 mb-1">{stat.title}</p>
                   <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
@@ -402,6 +398,7 @@ export function CandidatesOverview() {
             </CardContent>
           </Card>
         ))}
+        </div>
       </div>
 
       {/* Filters */}
@@ -441,7 +438,7 @@ export function CandidatesOverview() {
                 {
                   value: sortBy,
                   onChange: setSortBy,
-                  options: ["aiScore", "name", "appliedDate", "position"],
+                  options: ["score", "name", "appliedDate", "position"],
                   placeholder: "Sort",
                   width: "w-36",
                 },
@@ -454,13 +451,15 @@ export function CandidatesOverview() {
                     <SelectItem value="all">All {filter.placeholder}</SelectItem>
                     {filter.options.map((option: string) => (
                       <SelectItem key={option} value={option}>
-                        {option === "high"
-                          ? "9+"
-                          : option === "medium"
-                            ? "7-8.9"
-                            : option === "low"
-                              ? "Below 7"
-                              : option}
+                        {option === "score"
+                          ? "Score"
+                          : option === "high"
+                            ? "9+"
+                            : option === "medium"
+                              ? "7-8.9"
+                              : option === "low"
+                                ? "Below 7"
+                                : option}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -614,7 +613,7 @@ export function CandidatesOverview() {
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <Avatar className="h-12 w-12 ring-2 ring-gray-100 flex-shrink-0">
-                        <AvatarImage src={candidate.avatar || "/placeholder.svg"} alt={candidate.name} />
+                        <AvatarImage src="/anonym.png" alt="Anonymous" />
                         <AvatarFallback className="bg-veo-green/10 text-veo-green font-semibold">
                           {candidate.name
                             .split(" ")
@@ -624,12 +623,8 @@ export function CandidatesOverview() {
                       </Avatar>
                       <div className="min-w-0 flex-1">
                         <h3 className="font-semibold text-gray-900 text-lg truncate">{candidate.name}</h3>
-                        <p className="text-sm text-gray-600 truncate">{candidate.email}</p>
                         <div className="flex items-center gap-1 mt-1">
-                          <Globe className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                          <span className="text-xs text-gray-500 truncate">
-                            {getCountryFromLocation(candidate.location)}
-                          </span>
+                          <span className="text-xs text-gray-500 truncate">Tunis, Tunisia</span>
                         </div>
                       </div>
                     </div>
@@ -670,12 +665,7 @@ export function CandidatesOverview() {
 
                     <div className="grid grid-cols-1 gap-2 text-xs text-gray-600 mb-3">
                       <div className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3 flex-shrink-0" />
-                        <span className="truncate">{candidate.location.split(",")[0]}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Phone className="h-3 w-3 flex-shrink-0" />
-                        <span className="truncate">{candidate.phone}</span>
+                        <span className="truncate">Tunis, Tunisia</span>
                       </div>
                     </div>
 
@@ -718,35 +708,14 @@ export function CandidatesOverview() {
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2 items-end">
-                  <Button
-                    size="sm"
-                    onClick={() => toggleCandidateExpansion(candidate.id)}
-                    className="flex-1 bg-veo-green hover:bg-veo-green/90 text-white shadow-sm hover:shadow-md transition-all"
-                    disabled={!candidate.hasAIReport}
-                  >
-                    <Brain className="h-3 w-3 mr-2" />
-                    {candidate.hasAIReport ? 'View Score' : 'Not Analyzed'}
-                    {candidate.hasAIReport && (isExpanded ? <ChevronUp className="h-3 w-3 ml-2" /> : <ChevronDown className="h-3 w-3 ml-2" />)}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
+                   <Button
+                    size="lg"
                     onClick={() => viewCV(candidate)}
-                    className="px-3 hover:bg-blue-50 border-blue-200 text-blue-600"
+                    className="px-6 py-3 bg-veo-green hover:bg-veo-green/90 text-white text-base font-semibold rounded-lg w-full"
                     title="View Resume"
                   >
-                    <Eye className="h-3 w-3 mr-1" />
-                    CV
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => toggleAiReport(candidate)}
-                    className="px-3 hover:bg-gray-50 border-gray-200"
-                    title={candidate.hasAIReport ? "View AI Report" : "No AI analysis available"}
-                    disabled={!candidate.hasAIReport}
-                  >
-                    <FileText className="h-3 w-3" />
+                    <Eye className="h-4 w-4 mr-2" />
+                    View CV
                   </Button>
                 </div>
               </CardContent>

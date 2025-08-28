@@ -167,46 +167,41 @@ export function JobsDashboard() {
 </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 stagger-children">
-        {[
-          {
-            title: "Total Jobs",
-            value: filteredStats.totalJobs,
-            subtitle: `${filteredStats.activeJobs} active`,
-            icon: Briefcase,
-            color: "blue",
-          },
-          {
-            title: "Applicants",
-            value: filteredStats.totalApplicants,
-            subtitle: "Total candidates",
-            icon: Users,
-            color: "green",
-          },
-          {
-            title: "Avg. Score",
-            value: `${filteredStats.avgScore}%`,
-            subtitle: "AI quality",
-            icon: TrendingUp,
-            color: "purple",
-          },
-          { title: "Countries", value: countries.length, subtitle: "Global reach", icon: Globe, color: "indigo" },
-        ].map((stat, index) => (
-          <Card key={stat.title} className="hover-lift shadow-soft">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 mb-1">{stat.title}</p>
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                  <p className="text-xs text-gray-500 mt-1">{stat.subtitle}</p>
+      <div className="w-full flex justify-center">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+          {[
+            {
+              title: "Total Jobs",
+              value: filteredStats.totalJobs,
+              subtitle: `${filteredStats.activeJobs} active`,
+              icon: Briefcase,
+              color: "blue",
+            },
+            {
+              title: "Applicants",
+              value: filteredStats.totalApplicants,
+              subtitle: "Total candidates",
+              icon: Users,
+              color: "green",
+            },
+            { title: "Countries", value: countries.length, subtitle: "Global reach", icon: Globe, color: "indigo" },
+          ].map((stat, index) => (
+            <Card key={stat.title} className="hover-lift shadow-soft w-full">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between w-full">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">{stat.title}</p>
+                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                    <p className="text-xs text-gray-500 mt-1">{stat.subtitle}</p>
+                  </div>
+                  <div className={`p-3 rounded-xl bg-${stat.color}-100`}>
+                    <stat.icon className={`h-6 w-6 text-${stat.color}-600`} />
+                  </div>
                 </div>
-                <div className={`p-3 rounded-xl bg-${stat.color}-100`}>
-                  <stat.icon className={`h-6 w-6 text-${stat.color}-600`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
       {/* Filters */}
@@ -348,10 +343,6 @@ export function JobsDashboard() {
                       <div className="flex items-center gap-1.5">
                         <MapPin className="h-4 w-4" />
                         <span>{job.location}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="h-4 w-4" />
-                        <span>{new Date(job.postedDate).toLocaleDateString('en-CA')}</span>
                       </div>
                     </div>
                   </div>

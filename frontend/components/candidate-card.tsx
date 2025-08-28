@@ -61,7 +61,6 @@ export function CandidateCard({ candidate }: CandidateCardProps) {
             </Avatar>
             <div>
               <h3 className="font-semibold text-lg text-gray-900">{candidate.name}</h3>
-              <p className="text-sm text-gray-600">{candidate.email}</p>
             </div>
           </div>
           <Badge className={`${getScoreColor(candidate.aiScore)} font-bold text-lg px-3 py-1`}>
@@ -76,14 +75,8 @@ export function CandidateCard({ candidate }: CandidateCardProps) {
         </div>
 
         <div className="space-y-2 text-sm text-gray-600">
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4" />
-            <span>{candidate.location}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Briefcase className="h-4 w-4" />
-            <span>{candidate.experience} experience</span>
-          </div>
+          {/* Location removed */}
+          {/* Phone/experience removed */}
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             <span>Applied {candidate.appliedDate}</span>

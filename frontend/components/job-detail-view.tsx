@@ -935,12 +935,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     <div className="space-y-8 animate-fadeIn">
       {/* Header */}
       <div className="flex items-center gap-4 animate-slideDown">
-        <Link href="/">
-          <Button variant="outline" className="btn-secondary shadow-sm bg-transparent">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Jobs
-          </Button>
-        </Link>
         <div className="flex-1">
           {job ? (
             <div className="animate-slideRight">
@@ -967,7 +961,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                 <CardTitle className="text-xl">Job Details</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6">
                   <div className="flex items-center gap-3 animate-slideIn" style={{ animationDelay: "0.1s" }}>
                     <div className="p-2 bg-blue-100 rounded-lg">
                       <MapPin className="h-4 w-4 text-blue-600" />
@@ -975,15 +969,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                     <div>
                       <p className="text-sm text-gray-600">Location</p>
                       <p className="font-medium text-gray-900">{job.location}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 animate-slideIn" style={{ animationDelay: "0.2s" }}>
-                    <div className="p-2 bg-amber-100 rounded-lg">
-                      <Users className="h-4 w-4 text-amber-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Applicants</p>
-                      <p className="font-medium text-gray-900">{candidates.length}</p>
                     </div>
                   </div>
                 </div>
@@ -1119,32 +1104,15 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                     Applicants ({filteredAndSortedCandidates.length})
                   </CardTitle>
                   <div className="flex items-center gap-3">
-                    <Button
-                      onClick={() => setShowJobSkillsModal(true)}
-                      variant="outline"
-                      className="btn-secondary shadow-sm hover:shadow-md"
-                    >
-                      <Settings className="h-4 w-4 mr-2" />
-                      {(() => {
-                        // Check if assessment criteria exist for this job
-                        try {
-                          const saved = JSON.parse(localStorage.getItem('job-skills-barems') || '[]')
-                          const hasAssessment = saved.find((barem: any) => barem.jobTitle === job.title)
-                          return hasAssessment ? 'Modify Assessment' : 'Configure Job Skills'
-                        } catch {
-                          return 'Configure Job Skills'
-                        }
-                      })()}
-                    </Button>
-                    <Button
-                      onClick={startDirectAnalysis}
-                      disabled={selectedApplicants.length === 0}
-                      className="btn-primary shadow-sm hover:shadow-md"
-                    >
-                      <Zap className="h-4 w-4 mr-2" />
-                      Start AI Analysis
-                    </Button>
-                  </div>
+                      <Button
+                        onClick={startDirectAnalysis}
+                        disabled={selectedApplicants.length === 0}
+                        className="btn-primary shadow-sm hover:shadow-md"
+                      >
+                        <Zap className="h-4 w-4 mr-2" />
+                        Start Analysis
+                      </Button>
+                    </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -1238,29 +1206,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                     </span>
                   </div>
 
-                  {selectedApplicants.length > 0 && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="btn-secondary bg-transparent">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="animate-scaleIn">
-                        <DropdownMenuItem>
-                          <Download className="h-4 w-4 mr-2" />
-                          Export Selected
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          Bulk Message
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Settings className="h-4 w-4 mr-2" />
-                          Update Status
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
                 </div>
 
                 {/* Candidate List */}
@@ -1277,7 +1222,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                       />
                       {/* Avatar */}
                       <Avatar className={`h-12 w-12 ring-2 transition-all ring-gray-100 hover:ring-veo-green/30`}>
-                        <AvatarImage src={applicant.avatar || "/placeholder.svg"} alt={applicant.name} />
+                        <AvatarImage src="/anonym.png" alt="Anonymous" />
                         <AvatarFallback className="bg-veo-green/10 text-veo-green font-semibold">
                           {applicant.name
                             .split(" ")
@@ -1457,7 +1402,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Total Applicants</span>
+                  <span className="text-sm text-gray-600">Applied</span>
                   <Badge variant="secondary" className="bg-blue-100 text-blue-800">
                     {candidates.length}
                   </Badge>
@@ -1472,30 +1417,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                   <span className="text-sm text-gray-600">Favorites</span>
                   <Badge variant="secondary" className="bg-pink-50 text-pink-700">
                     {favoriteIds.length}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Added from Recos</span>
-                  <Badge variant="secondary" className="bg-indigo-100 text-indigo-800">
-                    {addedCandidates.length}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Analyzed</span>
-                  <Badge variant="secondary" className="bg-veo-green/20 text-veo-green">
-                    {filteredAndSortedCandidates.filter(c => c.aiScore !== undefined).length}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Pending</span>
-                  <Badge variant="secondary" className="bg-amber-100 text-amber-800">
-                    {filteredAndSortedCandidates.filter(c => c.aiScore === undefined).length}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">High Scores (8+)</span>
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
-                    {filteredAndSortedCandidates.filter(c => c.aiScore && c.aiScore >= 8).length}
                   </Badge>
                 </div>
               </CardContent>
@@ -1527,43 +1448,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                 >
                   <Wand2 className="h-4 w-4 mr-2" />
                   {isSuggesting ? 'Finding Candidates...' : 'Re-run Recommendations'}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start btn-secondary"
-                  onClick={() => {
-                    const csvContent = [
-                      ['Name', 'Email', 'Score', 'Skills'].join(','),
-                      ...filteredAndSortedCandidates.map(c => 
-                        [c.name, c.email, c.aiScore || 'N/A', c.skills.join(';')].join(',')
-                      )
-                    ].join('\n')
-                    
-                    const blob = new Blob([csvContent], { type: 'text/csv' })
-                    const url = window.URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = `${job.title.replace(/\s+/g, '_')}_candidates.csv`
-                    a.click()
-                    window.URL.revokeObjectURL(url)
-                  }}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export CSV
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start btn-secondary"
-                  onClick={() => {
-                    if (selectedApplicants.length === 0) {
-                      alert('Please select candidates first')
-                      return
-                    }
-                    alert(`Starting batch analysis for ${selectedApplicants.length} candidates`)
-                  }}
-                >
-                  <Brain className="h-4 w-4 mr-2" />
-                  Batch Analyze Selected
                 </Button>
               </CardContent>
             </Card>

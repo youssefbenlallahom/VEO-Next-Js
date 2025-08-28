@@ -1,15 +1,13 @@
 // Mock data for multiple jobs and candidates
 export interface Candidate {
+  location: string
   id: number
   name: string
-  email: string
-  phone: string
   position: string
   aiScore: number
   status: string
   appliedDate: string
   experience: string
-  location: string
   skills: string[]
   avatar: string
   resumeUrl: string
@@ -109,14 +107,11 @@ const generateCandidates = (count: number, jobTitle: string): Candidate[] => {
     return {
       id: i + 1,
       name: names[i % names.length] + (i >= names.length ? ` ${Math.floor(i / names.length)}` : ""),
-      email: `${names[i % names.length].toLowerCase().replace(" ", ".")}${i >= names.length ? i : ""}@email.com`,
-      phone: `+1 (555) ${String(Math.floor(seededRandom(seed * 2) * 900) + 100)}-${String(Math.floor(seededRandom(seed * 3) * 9000) + 1000)}`,
       position: jobTitle,
       aiScore: Math.floor(seededRandom(seed * 4) * 4) + 6, // 6-10 instead of 60-100
       status: statuses[Math.floor(seededRandom(seed * 5) * statuses.length)],
       appliedDate: new Date(2024, 11, 1 + Math.floor(seededRandom(seed * 6) * 30)).toISOString().split("T")[0],
       experience: `${Math.floor(seededRandom(seed * 7) * 8) + 1}+ years`,
-      location: locations[Math.floor(seededRandom(seed * 8) * locations.length)],
       skills: skills[jobTitle as keyof typeof skills]?.slice(0, Math.floor(seededRandom(seed * 9) * 4) + 3) || [],
       avatar: `/placeholder.svg?height=40&width=40`,
       resumeUrl: `/resumes/${names[i % names.length].toLowerCase().replace(" ", "-")}.pdf`,
@@ -127,6 +122,7 @@ const generateCandidates = (count: number, jobTitle: string): Candidate[] => {
       gaps: ["Limited experience in X", "Could improve Y", "Needs more Z"].slice(0, Math.floor(seededRandom(seed * 11) * 2) + 1),
       salary: `$${Math.floor(seededRandom(seed * 12) * 50000) + 80000}`,
       availability: seededRandom(seed * 13) > 0.5 ? "Immediate" : "2 weeks notice",
+  location: "Tunis, Tunisia",
     }
   })
 }

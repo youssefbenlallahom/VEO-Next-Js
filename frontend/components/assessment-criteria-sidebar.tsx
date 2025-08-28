@@ -225,12 +225,6 @@ export function AssessmentCriteriaSidebar({ jobTitle, onConfigureClick }: Assess
           <h4 className="font-semibold text-gray-900 text-sm">Assessment Details</h4>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-gray-600">Created:</p>
-              <p className="font-medium text-gray-900">
-                {new Date(criteria.createdDate).toLocaleDateString('en-GB')}
-              </p>
-            </div>
-            <div>
               <p className="text-gray-600">Skills Count:</p>
               <p className="font-medium text-gray-900">{totalSkills}</p>
             </div>
