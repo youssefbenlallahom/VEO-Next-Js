@@ -8,7 +8,8 @@ export async function GET(
 ) {
   try {
     // Await params as required by Next.js app router
-    const { params } = context;
+    const awaitedContext = await context;
+    const { params } = awaitedContext;
     const pathSegments = params.path;
     // Try primary root: assets/jobs
     const assetsRoot = path.join(process.cwd(), 'assets', 'jobs');

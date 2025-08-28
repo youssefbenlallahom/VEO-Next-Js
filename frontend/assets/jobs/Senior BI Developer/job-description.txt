@@ -1,3 +1,4 @@
+location : Tunis
 Development of reports, dashboards, and data models using IBM Cognos
 Gathering and formalizing business requirements
 Creation and optimization of Framework Manager packages

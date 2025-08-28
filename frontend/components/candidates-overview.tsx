@@ -600,7 +600,18 @@ export function CandidatesOverview() {
           const isExpanded = expandedCandidate === candidate.id
 
           // Get extracted skill keys for this candidate
-          const extractedSkillKeys = candidateSkillsMap[candidate.name] || [];
+            // Get extracted skill keys for this candidate, excluding 'country'
+            const extractedSkillKeys = (candidateSkillsMap[candidate.name] || []).filter((key) => key !== 'country');
+            // Get country value from extractedSkillsData for this candidate (always read the value of the 'country' key)
+            let candidateCountry = '';
+            if (extractedSkillsData?.candidates) {
+              const candidateData = extractedSkillsData.candidates.find((c: any) => c.candidate_name === candidate.name);
+              if (candidateData && candidateData.skills && typeof candidateData.skills === 'object') {
+                candidateCountry = candidateData.skills['country'] || candidateData.country || '';
+              } else {
+                candidateCountry = candidateData?.country || '';
+              }
+            }
 
           return (
             <Card
@@ -624,7 +635,7 @@ export function CandidatesOverview() {
                       <div className="min-w-0 flex-1">
                         <h3 className="font-semibold text-gray-900 text-lg truncate">{candidate.name}</h3>
                         <div className="flex items-center gap-1 mt-1">
-                          <span className="text-xs text-gray-500 truncate">Tunis, Tunisia</span>
+                          <span className="text-xs text-gray-500 truncate">{candidateCountry ? candidateCountry : 'Unknown Country'}</span>
                         </div>
                       </div>
                     </div>

@@ -45,6 +45,7 @@ def extract_skills_from_pdf(
         Dictionary with categories as keys and lists of skills as values.
         Example: {"Business Intelligence": ["Power BI", "Tableau"], "Programming Languages": ["Python", "SQL"]}
     """
+
     try:
         # Step 1: Acquire input text from either PDF or provided job description
         if (pdf_path is None) and (job_description is None):
@@ -81,7 +82,7 @@ def extract_skills_from_pdf(
             stream=False,
         )
 
-        # Step 3: Create skill extraction prompt
+        # Step 3: Create skill extraction prompt (add country extraction instruction)
         context_block = f"RESUME OR JOB DESCRIPTION TEXT:\n{input_text}"
         if job_title:
             context_block = f"JOB TITLE: {job_title}\n\n" + context_block
@@ -106,20 +107,20 @@ INSTRUCTIONS:
 3. Return ONLY a JSON object with categories as keys and skill arrays as values.
 4. Do NOT include soft skills, certifications, or languages.
 5. Use exact category names from the list above.
+6. Additionally, extract the candidate's country (if present) and include it as a top-level key "country" in the JSON response. If not found, set "country" to "Unknown".
 
 {context_block}
 
 Return ONLY valid JSON in this format:
 {{
+  "country": "France",
   "Business Intelligence": ["Power BI", "Tableau"],
   "Programming Languages": ["Python", "SQL", "JavaScript"],
   "Database & Data": ["MySQL", "PostgreSQL"]
 }}"""
 
         # Step 4: Call LLM for skill extraction
-        full_prompt = f"""You are an expert resume/job description skill extraction assistant. Extract only technical skills and group them by categories.
-
-{prompt}"""
+        full_prompt = f"You are an expert resume/job description skill extraction assistant. Extract only technical skills and group them by categories.\n\n{prompt}"
 
         response = llm.call([{"role": "user", "content": full_prompt}])
 
@@ -154,8 +155,13 @@ Return ONLY valid JSON in this format:
                 return {"Error": [f"No valid JSON found in response: {response_text[:200]}..."]}
 
         cleaned_skills: Dict[str, List[str]] = {}
+        country = "Unknown"
         if isinstance(skills_data, dict):
             for category, skills_list in skills_data.items():
+                if category == "country":
+                    if isinstance(skills_list, str) and skills_list:
+                        country = skills_list.strip()
+                    continue
                 if isinstance(skills_list, list) and skills_list:
                     clean_skills: List[str] = []
                     for skill in skills_list:
@@ -166,7 +172,10 @@ Return ONLY valid JSON in this format:
                     if clean_skills:
                         cleaned_skills[str(category)] = clean_skills
 
-        return cleaned_skills
+        # Return both country and cleaned skills
+        result = {"country": country}
+        result.update(cleaned_skills)
+        return result
     except Exception as e:
         return {"Error": [f"Skill extraction failed: {str(e)}"]}
 

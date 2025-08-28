@@ -99,6 +99,26 @@ const SUGGESTED_ID_OFFSET = 100000
 
 export function JobDetailView({ jobId }: JobDetailViewProps) {
   const { job, candidates, loading } = useJobWithCandidates(jobId)
+  // State to hold job skills API response
+  const [jobSkillsData, setJobSkillsData] = useState<any>(null);
+
+  // Fetch job skills (including country) when job changes
+  useEffect(() => {
+    async function fetchJobSkills() {
+      if (job?.title) {
+        try {
+          const res = await fetch(`/api/job-skills/${encodeURIComponent(job.title)}`);
+          if (res.ok) {
+            const data = await res.json();
+            setJobSkillsData(data);
+          }
+        } catch (e) {
+          // Silent fail
+        }
+      }
+    }
+    fetchJobSkills();
+  }, [job?.title, job]);
   const { candidateReports, loading: reportsLoading } = useCandidateReports(job?.title)
   const [selectedApplicants, setSelectedApplicants] = useState<number[]>([])
   const [showJobSkillsModal, setShowJobSkillsModal] = useState(false)
@@ -258,7 +278,9 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     const cleaned: Record<string, string[]> = Object.fromEntries(
       Object.entries(candidateSkillsCategorizedRaw).map(([k, arr]) => [
         k,
-        (arr || []).filter(s => !!s && s.trim() && s.trim().toLowerCase() !== 'to be determined')
+        Array.isArray(arr)
+          ? arr.filter(s => !!s && s.trim() && s.trim().toLowerCase() !== 'to be determined')
+          : []
       ])
     )
     return cleaned
@@ -274,13 +296,16 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       console.warn('❌ No job skills found, cannot run recommendations')
       return
     }
-    
-    console.log('✅ Job skills loaded:', jobSkills)
+
+    // Remove 'country' key from jobSkills if present
+    const jobSkillsClean = Object.fromEntries(Object.entries(jobSkills).filter(([k]) => k !== 'country'));
+
+    console.log('✅ Job skills loaded:', jobSkillsClean)
     if (!job?.title) {
       console.warn('❌ Job title is missing, cannot run recommendations')
       return
     }
-    
+
     if (!allCandidates || !candidates) {
       console.warn('❌ Candidates data not ready')
       return
@@ -295,7 +320,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     }
 
     console.log(`🎯 Found ${pool.length} candidates in pool for matching`)
-    
+
     setIsSuggesting(true)
     setSuggestProgress({ processed: 0, total: 1 }) // Single multi-call
 
@@ -303,14 +328,14 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     const multiPayload = {
       job_title: job.title,
       candidates: pool.map(c => ({ name: c.name, skills: getCategorizedSkillsForCandidate(c) })),
-      job_skills: jobSkills,
+      job_skills: jobSkillsClean,
       threshold: 40,
       debug: false,
     }
 
     console.log('📤 Sending to skill-match-multi API with payload:', {
       candidateCount: multiPayload.candidates.length,
-      jobSkills: Object.keys(jobSkills),
+      jobSkills: Object.keys(jobSkillsClean),
       threshold: multiPayload.threshold
     })
 
@@ -338,7 +363,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       const matchedCandidates = pool.filter(c => matchedSet.has(String(c.name).toLowerCase()))
 
       console.log(`✅ Skill matching complete: ${matchedCandidates.length} candidates matched`)
-      
+
       setSuggestProgress({ processed: 1, total: 1 }) // Complete
 
       // Save suggestions (no need for individual detailed matching)
@@ -940,7 +965,9 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
             <div className="animate-slideRight">
               <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{job.title}</h1>
               <p className="text-lg text-gray-600">
-                {job.department} • {job.location} • {candidates.length} applicants
+                {job.department}
+                {jobSkillsData && jobSkillsData.country ? ` • ${jobSkillsData.country}` : job.location ? ` • ${job.location}` : ''}
+                {' • '}{candidates.length} applicants
               </p>
             </div>
           ) : (
@@ -968,7 +995,10 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">Location</p>
-                      <p className="font-medium text-gray-900">{job.location}</p>
+                      <p className="font-medium text-gray-900">
+                        {/* Show country from jobSkillsData if available, else fallback to job.location */}
+                        {jobSkillsData && jobSkillsData.country ? jobSkillsData.country : job.location}
+                      </p>
                     </div>
                   </div>
                 </div>

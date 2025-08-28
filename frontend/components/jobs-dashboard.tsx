@@ -1,6 +1,5 @@
 "use client"
-
-import { useState, useMemo } from "react"
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,7 +31,28 @@ import { useJobs, useCandidates } from "@/hooks/use-data"
 const ITEMS_PER_PAGE = 6
 
 export function JobsDashboard() {
-  const { jobs, loading: jobsLoading, error: jobsError } = useJobs()
+  const { jobs, loading: jobsLoading, error: jobsError } = useJobs();
+  // State to hold job-skills API results for each job
+  const [jobSkillsMap, setJobSkillsMap] = useState<Record<string, any>>({});
+
+  // Fetch job-skills for all jobs on mount or when jobs change
+  useEffect(() => {
+    async function fetchAllJobSkills() {
+      if (!jobs || jobs.length === 0) return;
+      const map: Record<string, any> = {};
+      await Promise.all(jobs.map(async (job) => {
+        try {
+          const res = await fetch(`/api/job-skills/${encodeURIComponent(job.title)}`);
+          if (res.ok) {
+            const data = await res.json();
+            map[job.id] = data;
+          }
+        } catch {}
+      }));
+      setJobSkillsMap(map);
+    }
+    fetchAllJobSkills();
+  }, [jobs]);
   const { candidates, loading: candidatesLoading } = useCandidates()
   
   const [searchTerm, setSearchTerm] = useState("")
@@ -342,7 +362,7 @@ export function JobsDashboard() {
                     <div className="flex items-center gap-4 text-sm text-gray-500">
                       <div className="flex items-center gap-1.5">
                         <MapPin className="h-4 w-4" />
-                        <span>{job.location}</span>
+                        <span>{jobSkillsMap[job.id]?.country || job.location}</span>
                       </div>
                     </div>
                   </div>

@@ -1,3 +1,4 @@
+Location: Paris
 Main Responsibilities:
 Analyze supplier accounts: verify the necessary documents to make payments
 Check advance payment files in order to proceed with settlements

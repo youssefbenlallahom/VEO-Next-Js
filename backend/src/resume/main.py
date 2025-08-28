@@ -119,9 +119,14 @@ def api_analyze_skill_match_multi(data: MultiSkillMatchRequest):
         already_analyzed_set = set(existing_analyzed)
         new_candidates = [c for c in data.candidates if c.name not in already_analyzed_set]
 
+        # Remove 'country' key from job_skills
+        job_skills_clean = {k: v for k, v in data.job_skills.items() if k != "country"}
+
         # Analyze only new candidates
         for candidate in new_candidates:
-            result = analyze_skill_match(candidate.skills, data.job_skills, threshold=data.threshold)
+            # Remove 'country' key from candidate.skills if present
+            candidate_skills_clean = {k: v for k, v in candidate.skills.items() if k != "country"}
+            result = analyze_skill_match(candidate_skills_clean, job_skills_clean, threshold=data.threshold)
             if "Error" in result:
                 errors[candidate.name] = result["Error"]
             elif result.get("is_match", False):
@@ -378,14 +383,21 @@ async def extract_skills_from_cv(
             db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'candidate_reports.db')
             pre_conn = sqlite3.connect(db_path)
             pre_cur = pre_conn.cursor()
+            # Add country column if not exists
             pre_cur.execute('''
                 CREATE TABLE IF NOT EXISTS extracted_skills (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     candidate_name TEXT,
                     cv_filename TEXT,
-                    skills_json TEXT
+                    skills_json TEXT,
+                    country TEXT
                 )
             ''')
+            # Check if country column exists
+            pre_cur.execute("PRAGMA table_info(extracted_skills)")
+            cols = {row[1] for row in pre_cur.fetchall()}
+            if 'country' not in cols:
+                pre_cur.execute("ALTER TABLE extracted_skills ADD COLUMN country TEXT")
             pre_cur.execute('SELECT skills_json FROM extracted_skills WHERE candidate_name = ?', (candidate_name,))
             cached = pre_cur.fetchone()
             pre_conn.close()
@@ -400,6 +412,7 @@ async def extract_skills_from_cv(
             # Run extraction from PDF
             result = extract_skills_from_pdf(pdf_path=temp_pdf_path)
             cv_filename = file.filename
+            country = result.get("country", "Unknown")
         else:
             # Run extraction from job description text
             jd_text = (job_description or "").strip()
@@ -412,14 +425,20 @@ async def extract_skills_from_cv(
             db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'candidate_reports.db')
             pre_conn = sqlite3.connect(db_path)
             pre_cur = pre_conn.cursor()
+            # Add country column if not exists
             pre_cur.execute('''
                 CREATE TABLE IF NOT EXISTS job_required_skills (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     job_title TEXT NOT NULL,
                     required_skills_json TEXT NOT NULL,
-                    barem_json TEXT
+                    barem_json TEXT,
+                    country TEXT
                 )
             ''')
+            pre_cur.execute("PRAGMA table_info(job_required_skills)")
+            cols = {row[1] for row in pre_cur.fetchall()}
+            if 'country' not in cols:
+                pre_cur.execute("ALTER TABLE job_required_skills ADD COLUMN country TEXT")
             pre_cur.execute('SELECT required_skills_json FROM job_required_skills WHERE job_title = ?', (jt,))
             job_row = pre_cur.fetchone()
             pre_conn.close()
@@ -427,6 +446,7 @@ async def extract_skills_from_cv(
                 # If we already have extracted skills for this job, skip re-extraction
                 return JSONResponse(content={"already_extracted": True})
             result = extract_skills_from_pdf(job_description=jd_text, job_title=jt)
+            country = result.get("country", "Unknown")
 
         # Save to SQLite database (candidate_reports.db in project root)
         db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'candidate_reports.db')
@@ -436,50 +456,62 @@ async def extract_skills_from_cv(
         if file is not None:
             # Prepare data for DB (PDF flow)
             skills_json = json.dumps(result)
-            # Create table if not exists (without created_at)
+            # Create table if not exists (with country)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS extracted_skills (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     candidate_name TEXT,
                     cv_filename TEXT,
-                    skills_json TEXT
+                    skills_json TEXT,
+                    country TEXT
                 )
             ''')
+            # Check if country column exists
+            cursor.execute("PRAGMA table_info(extracted_skills)")
+            cols = {row[1] for row in cursor.fetchall()}
+            if 'country' not in cols:
+                cursor.execute("ALTER TABLE extracted_skills ADD COLUMN country TEXT")
             # Check if candidate already exists (only for PDF uploads where name is stable)
             cursor.execute('SELECT id FROM extracted_skills WHERE candidate_name = ?', (candidate_name,))
             exists = cursor.fetchone()
             if not exists:
-                # Insert row (without created_at)
+                # Insert row (with country)
                 cursor.execute(
-                    'INSERT INTO extracted_skills (candidate_name, cv_filename, skills_json) VALUES (?, ?, ?)',
-                    (candidate_name, cv_filename, skills_json)
+                    'INSERT INTO extracted_skills (candidate_name, cv_filename, skills_json, country) VALUES (?, ?, ?, ?)',
+                    (candidate_name, cv_filename, skills_json, country)
                 )
                 conn.commit()
         else:
-            # JD flow: save into new job_required_skills table (without created_at)
+            # JD flow: save into new job_required_skills table (with country)
             required_skills_json = json.dumps(result)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS job_required_skills (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     job_title TEXT NOT NULL,
                     required_skills_json TEXT NOT NULL,
-                    barem_json TEXT
+                    barem_json TEXT,
+                    country TEXT
                 )
             ''')
+            # Check if country column exists
+            cursor.execute("PRAGMA table_info(job_required_skills)")
+            cols = {row[1] for row in cursor.fetchall()}
+            if 'country' not in cols:
+                cursor.execute("ALTER TABLE job_required_skills ADD COLUMN country TEXT")
             # Check if job_title already exists
             cursor.execute('SELECT id, barem_json FROM job_required_skills WHERE job_title = ?', (jt,))
             job_exists = cursor.fetchone()
             if not job_exists:
                 cursor.execute(
-                    'INSERT INTO job_required_skills (job_title, required_skills_json, barem_json) VALUES (?, ?, ?)',
-                    (jt, required_skills_json, None)
+                    'INSERT INTO job_required_skills (job_title, required_skills_json, barem_json, country) VALUES (?, ?, ?, ?)',
+                    (jt, required_skills_json, None, country)
                 )
                 conn.commit()
             else:
-                # Update existing record with new skills, preserve existing barem
+                # Update existing record with new skills, preserve existing barem and update country
                 cursor.execute(
-                    'UPDATE job_required_skills SET required_skills_json = ? WHERE job_title = ?',
-                    (required_skills_json, jt)
+                    'UPDATE job_required_skills SET required_skills_json = ?, country = ? WHERE job_title = ?',
+                    (required_skills_json, country, jt)
                 )
                 conn.commit()
 
