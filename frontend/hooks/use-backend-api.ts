@@ -84,7 +84,7 @@ function transformCandidateReport(report: CandidateReport, filename?: string) {
     appliedDate: new Date(report.created_at).toISOString().split('T')[0],
     experience: '3+ years', // Default experience
     location: generateLocation(report.candidate_name),
-  skills: inferSkillsFromJobTitle(report.applied_job_title),
+    skills: inferSkillsFromJobTitle(report.applied_job_title),
     avatar: "/placeholder.svg",
     // Prefer exact filename if provided from assets enumeration; fallback to slug pattern
     resumeUrl: filename
@@ -121,11 +121,11 @@ export function useAllCandidates() {
       
       // Get all candidates from assets (this includes everyone)
       const allCandidatesResponse = await apiService.getAllCandidatesFromAssets()
-      console.log(`� Assets returned ${allCandidatesResponse.candidates.length} total candidates`)
+      console.log(`📁 Assets returned ${allCandidatesResponse.candidates.length} total candidates`)
       
       // Get analyzed candidates from database
       const analyzedResponse = await apiService.searchCandidates({ limit: 1000 })
-      console.log(`� Database returned ${analyzedResponse.candidates.length} analyzed candidates`)
+      console.log(`📊 Database returned ${analyzedResponse.candidates.length} analyzed candidates`)
       
       // Create a map of analyzed candidates by name for quick lookup
       const analyzedMap = new Map<string, CandidateReport>()
@@ -180,18 +180,8 @@ export function useAllCandidates() {
         }
       })
 
-      // Include analyzed candidates that don't have a matching asset file (still show them)
-      const assetNames = new Set(
-        allCandidatesResponse.candidates.map((c: any) => c.candidate_name.toLowerCase().trim())
-      )
-      const dbOnlyCandidates = analyzedResponse.candidates
-        .filter(report => !assetNames.has(report.candidate_name.toLowerCase().trim()))
-        .map(report => {
-          console.log(`� Adding DB-only candidate (no asset file found): ${report.candidate_name}`)
-          return transformCandidateReport({ ...report })
-        })
-
-      const finalList = [...mergedCandidates, ...dbOnlyCandidates]
+      // Enforce assets-only list: do NOT include DB-only candidates
+      const finalList = [...mergedCandidates]
       
       console.log(`🔄 Final merged candidates: ${finalList.length}`)
       console.log('📋 Analyzed candidates:', finalList.filter(c => c.hasAIReport).length)
