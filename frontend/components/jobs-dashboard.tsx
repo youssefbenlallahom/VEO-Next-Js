@@ -27,6 +27,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 import { useJobs, useCandidates } from "@/hooks/use-data"
+import { AddJobModal } from '@/components/add-job-modal'
 
 const ITEMS_PER_PAGE = 6
 
@@ -181,10 +182,12 @@ export function JobsDashboard() {
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Header */}
-      <div className="flex flex-col items-center justify-center text-center space-y-2 animate-slideDown">
-  <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Job Openings</h1>
-  
-</div>
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col items-center justify-center text-center space-y-2 animate-slideDown">
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Job Openings</h1>
+        </div>
+        <AddJobModal onCreated={() => { window.location.reload(); }} />
+      </div>
 
       {/* Stats Cards */}
       <div className="w-full flex justify-center">

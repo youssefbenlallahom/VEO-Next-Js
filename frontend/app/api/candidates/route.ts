@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 
@@ -72,6 +72,66 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error reading candidates:', error)
     return NextResponse.json({ error: 'Failed to read candidates' }, { status: 500 })
+  }
+}
+
+function slugifyName(fullName: string) {
+  return fullName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]+/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const contentType = req.headers.get('content-type') || ''
+    if (!contentType.includes('multipart/form-data')) {
+      return NextResponse.json({ error: 'Use multipart/form-data' }, { status: 415 })
+    }
+    const form = await req.formData()
+    const files = form.getAll('file') as File[]
+    const names = form.getAll('fullName') as string[]
+    const locations = form.getAll('location') as string[]
+    const jobTitles = form.getAll('jobTitle') as string[]
+
+    if (!files.length) {
+      return NextResponse.json({ error: 'No files uploaded' }, { status: 400 })
+    }
+    if (!(names.length === files.length && locations.length === files.length && jobTitles.length === files.length)) {
+      return NextResponse.json({ error: 'Metadata arrays length mismatch' }, { status: 400 })
+    }
+
+    const assetsPath = path.join(process.cwd(), 'assets', 'jobs')
+    if (!fs.existsSync(assetsPath)) fs.mkdirSync(assetsPath, { recursive: true })
+
+    const results: any[] = []
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const fullName = names[i]
+      const location = locations[i] || 'Tunisia'
+      const jobTitle = jobTitles[i]
+      if (!fullName || !jobTitle) continue
+      const jobFolderPath = path.join(assetsPath, jobTitle)
+      if (!fs.existsSync(jobFolderPath)) fs.mkdirSync(jobFolderPath, { recursive: true })
+      // Ensure meta file has location if not already set
+      const metaPath = path.join(jobFolderPath, 'job-meta.json')
+      if (!fs.existsSync(metaPath)) {
+        fs.writeFileSync(metaPath, JSON.stringify({ location }, null, 2), 'utf-8')
+      }
+      const arrayBuffer = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      const safeName = slugifyName(fullName)
+      const finalFilename = `${safeName}.pdf`
+      const savePath = path.join(jobFolderPath, finalFilename)
+      fs.writeFileSync(savePath, buffer)
+      results.push({ fullName, jobTitle, filename: finalFilename })
+    }
+    return NextResponse.json({ message: 'Candidates uploaded', count: results.length, candidates: results })
+  } catch (e:any) {
+    console.error('Error uploading candidates', e)
+    return NextResponse.json({ error: 'Failed to upload candidates' }, { status: 500 })
   }
 }
 

@@ -34,10 +34,12 @@ import {
   RotateCcw,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ZoomIn, ZoomOut, Maximize2, ExternalLink, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AIReportModal } from "@/components/ai-report-modal"
 import { useAllCandidates } from "@/hooks/use-backend-api"
 import useSWR from 'swr';
+import { AddCandidatesModal } from '@/components/add-candidates-modal'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
@@ -128,6 +130,7 @@ export function CandidatesOverview() {
   const [refreshingCandidates, setRefreshingCandidates] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
   const [expandedSkills, setExpandedSkills] = useState<Record<number, boolean>>({})
+  const [previewZoomMode, setPreviewZoomMode] = useState<'width' | '100'>('width')
   // For skill details modal
   const [selectedSkill, setSelectedSkill] = useState<{candidateName: string, skillKey: string} | null>(null);
 
@@ -161,7 +164,7 @@ export function CandidatesOverview() {
         candidate.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         candidate.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         candidate.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        candidate.skills.some((skill) => skill.toLowerCase().includes(searchTerm.toLowerCase()))
+  candidate.skills.some((skill: string) => skill.toLowerCase().includes(searchTerm.toLowerCase()))
 
 
       const matchesJob = jobFilter === "all" || candidate.position === jobFilter
@@ -344,6 +347,7 @@ export function CandidatesOverview() {
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">All Candidates</h1>
         </div>
         <div className="flex gap-3">
+          <AddCandidatesModal onUploaded={() => { refetch(); }} />
           {selectedCandidates.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -628,7 +632,7 @@ export function CandidatesOverview() {
                         <AvatarFallback className="bg-veo-green/10 text-veo-green font-semibold">
                           {candidate.name
                             .split(" ")
-                            .map((n) => n[0])
+                            .map((n: string) => n[0])
                             .join("")}
                         </AvatarFallback>
                       </Avatar>
@@ -817,64 +821,76 @@ export function CandidatesOverview() {
       )}
 
       {/* CV Viewer Modal */}
-        <Dialog open={!!viewingCV} onOpenChange={() => setViewingCV(null)}>
-    <DialogContent className="max-w-6xl h-[90vh] p-0 bg-white shadow-2xl">
-      {/* Header */}
-      <DialogHeader className="px-4 py-2 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-        <DialogTitle className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-2">
-            <div className="p-1 bg-blue-100 rounded-md">
-              <Eye className="h-4 w-4 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="text-base font-medium text-gray-900 leading-tight">
-                {viewingCV && 
-                  paginatedCandidates.find(c => c.id === viewingCV.candidateId)?.name
-                }
-              </h3>
-              <p className="text-xs text-gray-600">
-                {viewingCV && 
-                  paginatedCandidates.find(c => c.id === viewingCV.candidateId)?.position
-                }
-              </p>
-            </div>
-          </div>
-          <div className="mr-8">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (viewingCV) {
-                  window.open(viewingCV.cvUrl, '_blank');
-                }
-              }}
-              className="bg-white hover:bg-blue-50 border-blue-200 text-blue-600 shadow-sm px-3 py-1 h-auto text-xs"
-            >
-              <Download className="h-4 w-4 mr-1" />
-              Download
-            </Button>
-          </div>
-        </DialogTitle>
-      </DialogHeader>
-
-      {/* CV Content */}
-      <div className="flex-1 bg-gray-50 p-2">
-        <div className="h-full bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+      <Dialog open={!!viewingCV} onOpenChange={() => setViewingCV(null)}>
+        <DialogContent className="max-w-5xl h-[90vh] p-0 overflow-hidden bg-white">
+          {/* Accessible title (visually hidden) */}
+          <DialogHeader className="sr-only">
+            <DialogTitle>CV Preview</DialogTitle>
+          </DialogHeader>
           {viewingCV && (
-            <iframe
-              src={viewingCV.cvUrl}
-              className="w-full h-[calc(90vh-70px)] border-0"
-              title="Resume PDF"
-              onError={(e) => {
-                console.error('Error loading PDF:', e);
-                alert('Failed to load the resume. Try downloading instead.');
-              }}
-            />
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between px-4 py-2 border-b bg-white gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-1.5 bg-blue-100 rounded-md shrink-0"><Eye className="h-4 w-4 text-blue-600" /></div>
+                  <div className="leading-tight truncate">
+                    <h3 className="text-sm font-medium text-gray-900 truncate">
+                      {paginatedCandidates.find(c => c.id === viewingCV.candidateId)?.name}
+                    </h3>
+                    <p className="text-[11px] text-gray-500 truncate">
+                      {paginatedCandidates.find(c => c.id === viewingCV.candidateId)?.position}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="Fit width" onClick={()=> setPreviewZoomMode('width')} disabled={previewZoomMode==='width'}>
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="100%" onClick={()=> setPreviewZoomMode('100')} disabled={previewZoomMode==='100'}>
+                    {previewZoomMode==='100' ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Open in new tab"
+                    onClick={() => window.open(viewingCV.cvUrl, '_blank')}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Download"
+                    onClick={() => window.open(viewingCV.cvUrl, '_blank')}
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-gray-500"
+                    title="Close"
+                    onClick={() => setViewingCV(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1 relative bg-neutral-900/95">
+                <div className="absolute inset-0 overflow-hidden">
+                  <embed
+                    key={previewZoomMode}
+                    src={`${viewingCV.cvUrl}#toolbar=0&navpanes=0&zoom=${previewZoomMode==='width'?'page-width':'100'}`}
+                    type="application/pdf"
+                    className="w-full h-full"
+                  />
+                </div>
+              </div>
+            </div>
           )}
-        </div>
-      </div>
-    </DialogContent>
-  </Dialog>
+        </DialogContent>
+      </Dialog>
 
   {/* AI Report Modal */}
   <AIReportModal

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 
@@ -36,8 +36,8 @@ export async function GET() {
     const jobs: Job[] = []
 
     for (const jobFolder of jobFolders) {
-      const jobPath = path.join(assetsPath, jobFolder)
-      const files = fs.readdirSync(jobPath)
+  const jobPath = path.join(assetsPath, jobFolder)
+  const files = fs.readdirSync(jobPath)
       
       // Find job description file (optional)
       const descriptionFiles = files.filter(file => 
@@ -58,11 +58,26 @@ export async function GET() {
   const requirements = extractRequirements(description)
       
       // Create job object
+      // Read metadata if present
+    let location = "Tunisia"
+    let departmentOverride: string | undefined
+      const metaPath = path.join(jobPath, 'job-meta.json')
+      if (fs.existsSync(metaPath)) {
+        try {
+          const metaRaw = fs.readFileSync(metaPath, 'utf-8')
+          const meta = JSON.parse(metaRaw)
+          if (meta.location) location = meta.location
+      if (meta.department) departmentOverride = meta.department
+        } catch (e) {
+          // ignore meta parse errors
+        }
+      }
+
       const job: Job = {
         id: jobFolder.toLowerCase().replace(/\s+/g, '-'),
         title: jobFolder,
-        department: getDepartmentFromTitle(jobFolder),
-        location: "Tunisia", // Default location
+  department: departmentOverride || getDepartmentFromTitle(jobFolder),
+        location, // From meta or default
         type: "Full-time", // Default type
         status: "Open",
         postedDate: new Date().toISOString().split('T')[0],
@@ -81,6 +96,47 @@ export async function GET() {
   } catch (error) {
     console.error('Error reading jobs:', error)
     return NextResponse.json({ error: 'Failed to read jobs' }, { status: 500 })
+  }
+}
+
+// Utility to slugify folder names minimally (keep spaces for folder display name)
+function sanitizeJobTitle(title: string) {
+  return title.trim().replace(/[<>:"/\\|?*]+/g, '')
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const contentType = req.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      const body = await req.json()
+  const { title, description = '', location = 'Tunisia', department = '' } = body || {}
+      if (!title || typeof title !== 'string') {
+        return NextResponse.json({ error: 'Title is required' }, { status: 400 })
+      }
+      const safeTitle = sanitizeJobTitle(title)
+      if (!safeTitle) {
+        return NextResponse.json({ error: 'Invalid title' }, { status: 400 })
+      }
+      const assetsPath = path.join(process.cwd(), 'assets', 'jobs')
+      if (!fs.existsSync(assetsPath)) fs.mkdirSync(assetsPath, { recursive: true })
+      const jobFolderPath = path.join(assetsPath, safeTitle)
+      if (fs.existsSync(jobFolderPath)) {
+        return NextResponse.json({ error: 'Job already exists' }, { status: 409 })
+      }
+      fs.mkdirSync(jobFolderPath)
+      // Write description
+      if (description) {
+        fs.writeFileSync(path.join(jobFolderPath, 'job-description.txt'), description, 'utf-8')
+      }
+      // Write meta
+  fs.writeFileSync(path.join(jobFolderPath, 'job-meta.json'), JSON.stringify({ location, department: department || getDepartmentFromTitle(title) }, null, 2), 'utf-8')
+      return NextResponse.json({ message: 'Job created', title: safeTitle })
+    } else {
+      return NextResponse.json({ error: 'Unsupported content type' }, { status: 415 })
+    }
+  } catch (e:any) {
+    console.error('Error creating job', e)
+    return NextResponse.json({ error: 'Failed to create job' }, { status: 500 })
   }
 }
 
