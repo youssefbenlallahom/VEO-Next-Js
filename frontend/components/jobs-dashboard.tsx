@@ -18,13 +18,8 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
-  MoreHorizontal,
-  Download,
-  Archive,
-  Edit,
   Globe,
 } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 import { useJobs, useCandidates } from "@/hooks/use-data"
 import { AddJobModal } from '@/components/add-job-modal'
@@ -81,8 +76,9 @@ export function JobsDashboard() {
       const matchesDepartment = departmentFilter === "all" || job.department === departmentFilter
       const matchesPriority = priorityFilter === "all" || job.priority === priorityFilter
 
-      // For country filtering, we'll use location for now
-      const matchesCountry = countryFilter === "all" || job.location.includes(countryFilter)
+      // For country filtering, use jobSkillsMap data
+      const jobCountry = jobSkillsMap[job.id]?.country
+      const matchesCountry = countryFilter === "all" || (jobCountry && jobCountry === countryFilter)
 
       return matchesSearch && matchesStatus && matchesDepartment && matchesPriority && matchesCountry
     })
@@ -104,7 +100,7 @@ export function JobsDashboard() {
     })
 
     return filtered
-  }, [jobs, searchTerm, statusFilter, departmentFilter, priorityFilter, countryFilter, sortBy])
+  }, [jobs, searchTerm, statusFilter, departmentFilter, priorityFilter, countryFilter, sortBy, jobSkillsMap])
 
   // Pagination
   const totalPages = Math.ceil(filteredAndSortedJobs.length / ITEMS_PER_PAGE)
@@ -130,7 +126,8 @@ export function JobsDashboard() {
   const departments = [...new Set(jobs.map((job) => job.department))]
   const statuses = [...new Set(jobs.map((job) => job.status))]
   const priorities = ["High", "Medium", "Low"]
-  const countries = ["Tunisia", "France", "USA", "Canada"] // Add more as needed
+  // Dynamic countries from actual API data
+  const countries = [...new Set(Object.values(jobSkillsMap).map((skillData: any) => skillData?.country).filter(Boolean))]
 
   // Show loading state
   if (jobsLoading || candidatesLoading) {
@@ -363,35 +360,14 @@ export function JobsDashboard() {
                       {job.title}
                     </CardTitle>
                     <div className="flex items-center gap-4 text-sm text-gray-500">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="h-4 w-4" />
-                        <span>{jobSkillsMap[job.id]?.country || job.location}</span>
-                      </div>
+                      {jobSkillsMap[job.id]?.country && (
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="h-4 w-4" />
+                          <span>{jobSkillsMap[job.id].country}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="hover-scale">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="animate-scaleIn">
-                      <DropdownMenuItem>
-                        <Edit className="mr-2 h-4 w-4" />
-                        <span>Edit</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Archive className="mr-2 h-4 w-4" />
-                        <span>Archive</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Download className="mr-2 h-4 w-4" />
-                        <span>Export Applicants</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
               </div>
             </CardHeader>

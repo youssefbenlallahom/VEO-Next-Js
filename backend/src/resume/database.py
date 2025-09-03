@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine, Column, Integer, String, Text, Float, DateTime, JSON, Boolean
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime, timezone
 import sqlite3
 

@@ -230,13 +230,15 @@ def analyze_skill_match(candidate_skills: dict, job_skills: dict, threshold: int
     system_prompt = (
         "You are an expert HR assistant. Compare a candidate's skills to a job's required skills. "
         "Count as matches both exact skills and recognized synonyms or closely related technologies. "
+        "IMPORTANT: When counting matches, group related skills together - don't count them separately. "
         "For example:\n"
-        "- 'Power BI' or 'Microsoft Power BI' should match 'Dashboards' and 'Visualizations'.\n"
-        "- 'SQL', 'PostgreSQL', 'SQL Server', 'MySQL', or 'SQLite' are considered equivalent.\n"
-        "- 'Excel' or 'Microsoft Excel' counts as 'Reporting'.\n"
-        "Do NOT count unrelated or inferred skills beyond these synonyms. "
-        "Compute match_percentage based on total job skills matched by exact skills or synonyms. "
+        "- If job requires 'Database Management' and candidate has 'SQL', 'MySQL', 'PostgreSQL' - count this as 1 match, not 3.\n"
+        "- If job requires 'Data Visualization' and candidate has 'Power BI', 'Tableau' - count as 1 match.\n"
+        "- 'Excel' or 'Microsoft Excel' counts as 'Reporting' or 'Data Analysis'.\n"
+        "Your matched_skills list can include the specific technologies, but the match_percentage should be based on "
+        "how many JOB REQUIREMENTS are satisfied, not how many candidate skills match. "
         f"If match_percentage >= {threshold}, set is_match = true. "
+        "Match percentage should NEVER exceed 100%. "
         "Return ONLY valid JSON with these fields: match_percentage, is_match, matched_skills, missing_skills. "
         "Do not include explanations, guesses, or extra text."
     )
@@ -294,8 +296,15 @@ def analyze_skill_match(candidate_skills: dict, job_skills: dict, threshold: int
         else:
             matched_count = 0
         
+        # Cap matched skills count to not exceed total job skills
+        # This prevents impossible percentages over 100%
+        matched_count = min(matched_count, total_job_skills)
+        
         # Recalculate correct percentage
         correct_percentage = round((matched_count / total_job_skills) * 100, 2) if total_job_skills > 0 else 0
+        
+        # Ensure percentage never exceeds 100%
+        correct_percentage = min(correct_percentage, 100.0)
         
         # Update the result with correct values
         result["match_percentage"] = correct_percentage
@@ -304,9 +313,10 @@ def analyze_skill_match(candidate_skills: dict, job_skills: dict, threshold: int
         # Add verification info
         result["_verification"] = {
             "total_job_skills": total_job_skills,
-            "matched_skills_count": matched_count,
+            "matched_skills_count": matched_count,  # This is now capped
             "llm_original_percentage": result.get("match_percentage", 0),
-            "corrected_percentage": correct_percentage
+            "corrected_percentage": correct_percentage,
+            "capped_to_100_percent": correct_percentage < result.get("match_percentage", 0)
         }
         
         # Print the analyze_skill_match function output
@@ -730,15 +740,14 @@ class AnalyzeResponse(BaseModel):
 
 # --- Database Models ---
 class SavedCandidateReport(BaseModel):
+    model_config = {"from_attributes": True}
+    
     id: int
     candidate_name: str
     job_title: str
     total_weighted_score: float
     rationale: str
     created_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 # Recommendation toggle models
 class ToggleRecommendRequest(BaseModel):
@@ -1247,7 +1256,7 @@ def parse_report_to_json(report_path):
         content = file.read()
 
     def extract_section(title, text):
-        pattern = re.compile(f"## {re.escape(title)}\n(.*?)(?=\n## |\Z)", re.DOTALL | re.IGNORECASE)
+        pattern = re.compile(f"## {re.escape(title)}\n(.*?)(?=\n## |\\Z)", re.DOTALL | re.IGNORECASE)
         match = pattern.search(text)
         return match.group(1).strip() if match else ""
 

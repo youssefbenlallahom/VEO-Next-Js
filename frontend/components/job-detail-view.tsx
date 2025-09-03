@@ -966,8 +966,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
               <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{job.title}</h1>
               <p className="text-lg text-gray-600">
                 {job.department}
-                {jobSkillsData && jobSkillsData.country ? ` • ${jobSkillsData.country}` : job.location ? ` • ${job.location}` : ''}
-                {' • '}{candidates.length} applicants
+                {jobSkillsData && jobSkillsData.country ? ` ${jobSkillsData.country}` : ''}
+                {' '}{candidates.length} applicants
               </p>
             </div>
           ) : (
@@ -996,8 +996,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                     <div>
                       <p className="text-sm text-gray-600">Location</p>
                       <p className="font-medium text-gray-900">
-                        {/* Show country from jobSkillsData if available, else fallback to job.location */}
-                        {jobSkillsData && jobSkillsData.country ? jobSkillsData.country : job.location}
+                        {/* Show country from jobSkillsData only when available */}
+                        {jobSkillsData && jobSkillsData.country ? jobSkillsData.country : 'Loading...'}
                       </p>
                     </div>
                   </div>
