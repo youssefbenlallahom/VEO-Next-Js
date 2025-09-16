@@ -142,7 +142,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [selectedSkill, setSelectedSkill] = useState<{candidateName: string, skillKey: string} | null>(null)
   // Recommendation state: only for cross-job suggestions (non-applicants)
   const { candidates: allCandidates, loading: allCandidatesLoading } = useAllCandidates()
-  const [autoMatchedJobId, setAutoMatchedJobId] = useState<string | null>(null)
   // Cross-job suggestions (non-applicants)
   const [isSuggesting, setIsSuggesting] = useState(false)
   const [suggestedCandidates, setSuggestedCandidates] = useState<any[]>([])
@@ -432,29 +431,6 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     setSelectedApplicants(prev => prev.filter(id => id !== ((cand.id ?? 0) + SUGGESTED_ID_OFFSET)))
   }
 
-  // Auto-run only cross-job recommendations once per job when data is ready
-  useEffect(() => {
-    if (!job?.id) return
-    if (autoMatchedJobId === job.id) return
-    if (!candidates || candidates.length === 0) return
-    
-    // Check if we have job skills configured (async)
-    ;(async () => {
-      try {
-        const jobSkills = await getJobSkillsCategorized()
-        if (!jobSkills) {
-          console.log('⏳ No job skills available yet, skipping auto-recommendations')
-          return
-        }
-        
-        console.log('🚀 Auto-running cross-job recommendations for job:', job.title)
-        // Only run cross-job recommendations, not matching for current applicants
-        await runCrossJobRecommendations()
-      } finally {
-        setAutoMatchedJobId(job.id)
-      }
-    })()
-  }, [job?.id, allCandidatesLoading, allCandidates])
   // Build skills from score details
   const extractSkillsFromScoreDetails = (scoreDetails: any): string[] => {
     if (!scoreDetails) return []
