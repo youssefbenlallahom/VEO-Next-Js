@@ -392,29 +392,43 @@ export function JobsDashboard() {
                     <span className="text-gray-500">{job.applicants} total</span>
                   </div>
 
-                  {job.applicants > 0 ? (
-                    <div className="flex -space-x-2 overflow-hidden mt-3">
-                      {candidates
-                        .filter(c => c.jobId === job.id)
-                        .slice(0, 5)
-                        .map(a => (
-                          <Avatar key={a.id} className="inline-block h-8 w-8 rounded-full ring-2 ring-white">
-                            <AvatarImage src={a.avatar} alt={a.name} />
-                            <AvatarFallback>{a.name.charAt(0)}</AvatarFallback>
+                  <div className="flex -space-x-2 overflow-hidden mt-3 h-8">
+                    {job.applicants > 0 ? (
+                      <>
+                        {candidates
+                          .filter(c => c.jobId === job.id)
+                          .slice(0, 5)
+                          .map(a => (
+                            <Avatar key={a.id} className="inline-block h-8 w-8 rounded-full ring-2 ring-white">
+                              <AvatarImage src={a.avatar} alt={a.name} />
+                              <AvatarFallback>{a.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                          ))}
+                        {job.applicants > 5 && (
+                          <Avatar className="inline-block h-8 w-8 rounded-full ring-2 ring-white">
+                            <AvatarFallback>+{job.applicants - 5}</AvatarFallback>
                           </Avatar>
-                        ))}
-                      {job.applicants > 5 && (
-                        <Avatar className="inline-block h-8 w-8 rounded-full ring-2 ring-white">
-                          <AvatarFallback>+{job.applicants - 5}</AvatarFallback>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <Avatar className="inline-block h-8 w-8 rounded-full ring-2 ring-white opacity-20">
+                          <AvatarFallback className="bg-gray-100"></AvatarFallback>
                         </Avatar>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 text-gray-500">
-                      <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">No applicants yet</p>
-                    </div>
-                  )}
+                        <Avatar className="inline-block h-8 w-8 rounded-full ring-2 ring-white opacity-20">
+                          <AvatarFallback className="bg-gray-100"></AvatarFallback>
+                        </Avatar>
+                        <Avatar className="inline-block h-8 w-8 rounded-full ring-2 ring-white opacity-20">
+                          <AvatarFallback className="bg-gray-100"></AvatarFallback>
+                        </Avatar>
+                        <Avatar className="inline-block h-8 w-8 rounded-full ring-2 ring-white opacity-20">
+                          <AvatarFallback className="bg-gray-100"></AvatarFallback>
+                        </Avatar>
+                        <Avatar className="inline-block h-8 w-8 rounded-full ring-2 ring-white opacity-20">
+                          <AvatarFallback className="bg-gray-100"></AvatarFallback>
+                        </Avatar>
+                      </>
+                    )}
                 </div>
               </div>
 
@@ -426,6 +440,7 @@ export function JobsDashboard() {
                   </Button>
                 </Link>
               </div>
+            </div>
             </CardContent>
           </Card>
         ))}
