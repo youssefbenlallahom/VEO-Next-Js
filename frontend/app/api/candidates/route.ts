@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
       const arrayBuffer = await file.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
       const safeName = slugifyName(fullName)
-      const finalFilename = `${safeName}.pdf`
+      const finalFilename = `${safeName}-cv.pdf`
       const savePath = path.join(jobFolderPath, finalFilename)
       fs.writeFileSync(savePath, buffer)
       results.push({ fullName, jobTitle, filename: finalFilename })

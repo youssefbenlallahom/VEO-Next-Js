@@ -38,7 +38,7 @@ import { ZoomIn, ZoomOut, Maximize2, ExternalLink, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AIReportModal } from "@/components/ai-report-modal"
 import { useAllCandidates } from "@/hooks/use-backend-api"
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
 import { AddCandidatesModal } from '@/components/add-candidates-modal'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
@@ -147,13 +147,6 @@ export function CandidatesOverview() {
     });
     return map;
   }, [extractedSkillsData]);
-
-  // Helper to fetch PDF from URL as File
-  async function fetchPdfAsFile(url: string, filename: string): Promise<File> {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    return new File([blob], filename, { type: 'application/pdf' });
-  }
 
   // Filter and sort candidates - moved before early returns
   const filteredAndSortedCandidates = useMemo(() => {
@@ -301,10 +294,6 @@ export function CandidatesOverview() {
     // Use the API route to serve the CV
     const jobTitle = candidate.position || '';
     const url = `/api/cv/${encodeURIComponent(jobTitle)}/${fileName}`;
-    console.log('Generated CV URL:', url);
-    console.log('For candidate:', candidate.name);
-    console.log('Using filename:', fileName);
-    console.log('Job title:', jobTitle);
     return url;
   }
 
@@ -506,32 +495,32 @@ export function CandidatesOverview() {
             variant="outline"
             size="sm"
             onClick={async () => {
-              console.log('Extract skills button clicked');
               setRefreshingCandidates(true);
               setRefreshError && setRefreshError(null);
-              console.log('Starting skill extraction for', paginatedCandidates.length, 'candidates');
               try {
                 // For each candidate on the current page, analyze their CV
                 await Promise.all(candidates.map(async (candidate) => {
                   try {
-                    // Get CV URL
+                    // Extract job title and filename from CV URL instead of downloading the file
                     const cvUrl = getCVUrl(candidate);
-                    console.log(`Processing CV for ${candidate.name}: ${cvUrl}`);
-                    // Fetch PDF as File
-                    const file = await fetchPdfAsFile(cvUrl, `${candidate.name}.pdf`);
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    // Call the API
-                    console.log(`Sending CV to API: ${candidate.name}`);
-                    console.log('FormData contents:', Array.from(formData.entries()));
                     
+                    // Parse the CV URL to extract job_title and filename
+                    // URL format: /api/cv/{job_title}/{filename}
+                    const urlParts = cvUrl.split('/');
+                    const jobTitle = decodeURIComponent(urlParts[3]); // job_title part
+                    const filename = urlParts[4]; // filename part
+                    
+                    // Call the new asset-based API
                     let response;
                     try {
-                      response = await fetch('/api/skills-from-cv', {
+                      response = await fetch('/api/extract-skills-from-asset', {
                         method: 'POST',
-                        body: formData,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                          job_title: jobTitle, 
+                          filename: filename 
+                        }),
                       });
-                      console.log(`API response status for ${candidate.name}:`, response.status);
                       if (!response.ok) {
                         const errorText = await response.text();
                         console.error(`API error for ${candidate.name}:`, errorText);
@@ -543,15 +532,11 @@ export function CandidatesOverview() {
                     }
                     
                     const data = await response.json();
-                    console.log(`API response for ${candidate.name}:`, data);
-                    console.log(`API Response for ${candidate.name}:`, data);
                     // Extract skill categories
                     const skillCategories = data.hard_skills ? Object.keys(data.hard_skills) : [];
-                    console.log(`Extracted skills for ${candidate.name}:`, skillCategories);
                     
                     // Update candidate's skills directly (this will be reflected after refetch)
                     candidate.skills = skillCategories;
-                    console.log(`Updated candidate ${candidate.name} with skills:`, skillCategories);
                   } catch (err) {
                     // On error, clear skills for this candidate
                     candidate.skills = [];
@@ -560,6 +545,8 @@ export function CandidatesOverview() {
                 
                 // Refresh the candidates data to reflect the changes
                 await refetch();
+                // Also refresh the skills data
+                await mutate('/api/display-skills');
               } catch (err: any) {
                 setRefreshError && setRefreshError('Failed to extract skills for some candidates.');
               } finally {

@@ -537,6 +537,152 @@ async def extract_skills_from_cv(
                 os.remove(temp_pdf_path)
         except Exception:
             pass
+
+
+# --- Extract Skills from Asset CV Endpoint ---
+@app.post("/extract-skills-from-asset-cv")
+async def extract_skills_from_asset_cv(
+    job_title: str = Form(...),
+    filename: str = Form(...),
+):
+    """Extract technical skills from a CV file stored in the assets directory.
+    
+    This endpoint reads CV files directly from the frontend/assets/jobs/<job_title>/<filename>
+    directory without creating temporary files.
+    """
+    import sqlite3
+    try:
+        # Validate inputs
+        if not job_title or not filename:
+            raise ValueError("Both job_title and filename are required.")
+        
+        # Construct the path to the CV file in assets
+        # The assets directory is at frontend/assets/jobs relative to the project root
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        assets_path = os.path.join(project_root, 'frontend', 'assets', 'jobs', job_title, filename)
+        
+        # Security check: ensure the path is within the assets directory
+        assets_base = os.path.join(project_root, 'frontend', 'assets', 'jobs')
+        if not os.path.abspath(assets_path).startswith(os.path.abspath(assets_base)):
+            raise ValueError("Invalid file path - outside assets directory.")
+        
+        # Check if file exists
+        if not os.path.exists(assets_path):
+            raise FileNotFoundError(f"CV file not found: {assets_path}")
+        
+        # Extract candidate name from filename and convert to proper display name
+        def filename_to_candidate_name(filename: str) -> str:
+            """Convert filename like 'alaeddine-selmi-cv.pdf' to proper name like 'Alaeddine Selmi'"""
+            # Mapping of filenames to proper candidate names
+            filename_to_name_map = {
+                "hadil-msadak-cv.pdf": "Hadil Msadak",
+                "ghassen-abbes-cv.pdf": "Ghassen Abbes", 
+                "ahmed-kassab-cv.pdf": "Ahmed Kassab",
+                "arwa-lassoued-cv.pdf": "Arwa Lassoued",
+                "baha-kahri-cv.pdf": "Baha Kahri",
+                "baha-khemiri-cv.pdf": "Baha Khemiri",
+                "ferchichi-mehdi-cv.pdf": "Ferchichi Mehdi",
+                "ghassen-bouzayen-cv.pdf": "Ghassen Bouzayen",
+                "imen-zarai-cv.pdf": "Imen Zarai",
+                "kais-garci-cv.pdf": "Kais Garci",
+                "lamia-cherni-cv.pdf": "Lamia Cherni",
+                "mahdi-abdelhedi-cv.pdf": "Mahdi Abdelhedi",
+                "mohamed-gharghari-el-ayech-cv.pdf": "Mohamed Gharghari El Ayech",
+                "rim-jamli-cv.pdf": "Rim Jamli",
+                "safa-ochi-cv.pdf": "Safa Ochi",
+                "alaeddine-selmi-cv.pdf": "Alaeddine Selmi"
+            }
+            
+            # Check if we have a mapping for this filename
+            if filename in filename_to_name_map:
+                return filename_to_name_map[filename]
+            
+            # Fallback: convert from filename format to title case
+            name_part = os.path.splitext(filename)[0]
+            if name_part.endswith('-cv'):
+                name_part = name_part[:-3]  # Remove '-cv' suffix
+            
+            # Convert kebab-case to Title Case
+            words = name_part.split('-')
+            return ' '.join(word.capitalize() for word in words)
+        
+        candidate_name = filename_to_candidate_name(filename)
+        
+        # Check if this candidate's skills were already extracted
+        db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'candidate_reports.db')
+        pre_conn = sqlite3.connect(db_path)
+        pre_cur = pre_conn.cursor()
+        
+        # Create table if not exists
+        pre_cur.execute('''
+            CREATE TABLE IF NOT EXISTS extracted_skills (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                candidate_name TEXT,
+                cv_filename TEXT,
+                skills_json TEXT,
+                country TEXT
+            )
+        ''')
+        
+        # Check if country column exists
+        pre_cur.execute("PRAGMA table_info(extracted_skills)")
+        cols = {row[1] for row in pre_cur.fetchall()}
+        if 'country' not in cols:
+            pre_cur.execute("ALTER TABLE extracted_skills ADD COLUMN country TEXT")
+        
+        pre_cur.execute('SELECT skills_json FROM extracted_skills WHERE candidate_name = ?', (candidate_name,))
+        cached = pre_cur.fetchone()
+        pre_conn.close()
+        
+        if cached and cached[0]:
+            # Return cached result instead of re-extracting
+            try:
+                cached_skills = json.loads(cached[0])
+                return JSONResponse(content={"hard_skills": cached_skills, "already_extracted": True})
+            except:
+                # If cached data is invalid, proceed with re-extraction
+                pass
+        
+        # Extract skills directly from the asset file (no temporary file needed)
+        result = extract_skills_from_pdf(pdf_path=assets_path)
+        
+        if "Error" in result:
+            return JSONResponse(content=result, status_code=500)
+        
+        country = result.get("country", "Unknown")
+        
+        # Save to SQLite database
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Prepare data for DB
+        skills_json = json.dumps(result)
+        
+        # Check if candidate already exists
+        cursor.execute('SELECT id FROM extracted_skills WHERE candidate_name = ?', (candidate_name,))
+        exists = cursor.fetchone()
+        if not exists:
+            # Insert new row
+            cursor.execute(
+                'INSERT INTO extracted_skills (candidate_name, cv_filename, skills_json, country) VALUES (?, ?, ?, ?)',
+                (candidate_name, filename, skills_json, country)
+            )
+            conn.commit()
+        else:
+            # Update existing row
+            cursor.execute(
+                'UPDATE extracted_skills SET cv_filename = ?, skills_json = ?, country = ? WHERE candidate_name = ?',
+                (filename, skills_json, country, candidate_name)
+            )
+            conn.commit()
+        
+        conn.close()
+        
+        return JSONResponse(content={"hard_skills": result})
+        
+    except Exception as e:
+        return JSONResponse(content={"Error": [str(e)]}, status_code=500)
+
     
 # --- Display Extracted Skills Endpoint ---
 @app.get("/display_skills")
