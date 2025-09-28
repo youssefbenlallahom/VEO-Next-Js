@@ -37,9 +37,10 @@ interface JobBaremResponse {
 interface AssessmentCriteriaSidebarProps {
   jobTitle: string
   onConfigureClick: () => void
+  onCriteriaChange?: (hasCriteria: boolean) => void
 }
 
-export function AssessmentCriteriaSidebar({ jobTitle, onConfigureClick }: AssessmentCriteriaSidebarProps) {
+export function AssessmentCriteriaSidebar({ jobTitle, onConfigureClick, onCriteriaChange }: AssessmentCriteriaSidebarProps) {
   const [criteria, setCriteria] = useState<AssessmentCriteria | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -61,6 +62,7 @@ export function AssessmentCriteriaSidebar({ jobTitle, onConfigureClick }: Assess
         if (response.status === 404) {
           // No criteria found for this job
           setCriteria(null)
+          onCriteriaChange?.(false)
           setIsLoading(false)
           return
         }
@@ -75,6 +77,7 @@ export function AssessmentCriteriaSidebar({ jobTitle, onConfigureClick }: Assess
         if (!data.barem || Object.keys(data.barem).length === 0) {
           // Empty barem means no criteria configured yet
           setCriteria(null)
+          onCriteriaChange?.(false)
           setIsLoading(false)
           return
         }
@@ -103,6 +106,7 @@ export function AssessmentCriteriaSidebar({ jobTitle, onConfigureClick }: Assess
         // If no weights were extracted, treat as no criteria
         if (Object.keys(weights).length === 0) {
           setCriteria(null)
+          onCriteriaChange?.(false)
           setIsLoading(false)
           return
         }
@@ -118,10 +122,12 @@ export function AssessmentCriteriaSidebar({ jobTitle, onConfigureClick }: Assess
         }
         
         setCriteria(transformedCriteria)
+        onCriteriaChange?.(true)
       } catch (err) {
         console.error('Error fetching job barem:', err)
         setError(err instanceof Error ? err.message : 'Failed to load assessment criteria')
         setCriteria(null)
+        onCriteriaChange?.(false)
       } finally {
         setIsLoading(false)
       }

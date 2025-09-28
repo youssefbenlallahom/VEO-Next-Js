@@ -125,6 +125,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
   const [assessmentCriteriaKey, setAssessmentCriteriaKey] = useState(0) // For forcing re-render
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisProgress, setAnalysisProgress] = useState(0)
+  const [hasCriteria, setHasCriteria] = useState(false)
 
   // Candidate filtering and pagination
   const [candidateSearch, setCandidateSearch] = useState("")
@@ -1112,8 +1113,12 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                   <div className="flex items-center gap-3">
                       <Button
                         onClick={startDirectAnalysis}
-                        disabled={selectedApplicants.length === 0}
-                        className="btn-primary shadow-sm hover:shadow-md"
+                        disabled={selectedApplicants.length === 0 || !hasCriteria}
+                        className={`shadow-sm hover:shadow-md transition-all ${
+                          selectedApplicants.length === 0 || !hasCriteria 
+                            ? 'bg-gray-400 text-gray-600 cursor-not-allowed hover:bg-gray-400' 
+                            : 'btn-primary'
+                        }`}
                       >
                         <Zap className="h-4 w-4 mr-2" />
                         Start Analysis
@@ -1435,6 +1440,7 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
               key={assessmentCriteriaKey}
               jobTitle={job.title}
               onConfigureClick={() => setShowJobSkillsModal(true)}
+              onCriteriaChange={setHasCriteria}
             />
           )}
 
