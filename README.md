@@ -511,29 +511,29 @@ MIT License. See `LICENSE`.
 
 ## 📸 Platform Screenshots
 
-### Candidates Overview Dashboard
-![Candidates Overview](screenshots/candidates-overview.png)
+### Candidate Dashboard
+![Candidate Dashboard](screenshots/candidate_dashboard.png)
+*Main dashboard showing candidate overview with statistics and navigation options.*
+
+### Candidates List
+![Candidates List](screenshots/candidate_list.png)
 *Browse all candidates with intelligent filtering, search functionality, and quick access to CVs. Shows candidate skills, locations, and application status at a glance.*
 
-### Job Listings Dashboard  
-![Jobs Dashboard](screenshots/jobs-dashboard.png)
+### Job Openings Dashboard  
+![Job Openings](screenshots/job_openings.png)
 *Comprehensive job management interface displaying all open positions with applicant counts, departments, and priority levels. Quick access to AI-powered analysis for each role.*
 
-### Job Detail & Candidate Analysis
-![Job Details](screenshots/job-detail-view.png)
+### Job Details
+![Job Details](screenshots/job details.png)
 *Detailed job view showing applicants with AI matching scores, skill breakdowns, and recommendation status. Features filtering by favorites and AI-generated insights.*
 
 ### Assessment Criteria Configuration
-![Assessment Criteria](screenshots/assessment-criteria.png)
+![Assessment Criteria](screenshots/assessment_criteria.png)
 *Interactive skill weighting system allowing recruiters to set custom evaluation criteria. Supports multiple skill categories with percentage-based weights for objective candidate scoring.*
 
 ### Job Skills Configuration Modal
-![Skills Configuration](screenshots/skills-config-modal.png)
+![Job Skills Configuration](screenshots/job_skills_config.png)
 *Advanced configuration interface for setting up job-specific assessment criteria with granular control over skill weights, experience levels, and language requirements.*
-
-### Senior BI Developer Job Details
-![Senior BI Developer](screenshots/senior-bi-job.png)
-*Example job posting showing detailed requirements, responsibilities, and quick stats including applied candidates (2), recommended candidates (5), and favorites tracking.*
 
 ## Key Features Demonstrated
 
