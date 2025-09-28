@@ -274,15 +274,6 @@ This project was completed as part of a 2-month internship program. Current stat
 - 🔄 **Testing**: Basic testing implemented, comprehensive test suite in progress
 - 📋 **Documentation**: API documentation available at `/docs`
 
-## 🤝 Contributing
-
-This project was developed by a team of 3 interns:
-- Frontend Development & UI/UX
-- Backend Development & AI Integration  
-- Database Design & API Architecture
-
-For contributions or questions about the codebase, please refer to the commit history and inline documentation.
-
 ## 🔒 Security Considerations
 
 - Environment variables for sensitive API keys
@@ -511,15 +502,6 @@ This project was developed collaboratively during a 2-month internship by a team
 - **Youssef Ben Lallahom**
 
 All team members worked together on every aspect of the project including frontend development, backend architecture, AI integration, database design, and UI/UX through collaborative coding sessions, pair programming, and shared problem-solving.
-h
-
-### For Future Contributors
-
-1. Fork the repo and create a feature branch.
-2. Run both apps locally and add/adjust tests.
-3. Submit a PR with a clear description and screenshots for UI changes.
-
-Use conventional commits and keep changes scoped.
 
 
 ## License
