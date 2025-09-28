@@ -113,9 +113,6 @@ model=azure/your-model-deployment-name
 AZURE_AI_API_KEY=your-azure-api-key
 AZURE_AI_ENDPOINT=https://your-resource.openai.azure.com/
 AZURE_AI_API_VERSION=2024-02-15-preview
-
-# Optional: Recruitee API (if using external recruitment system)
-RECRUITEE_API_TOKEN=your-recruitee-token
 ```
 
 ### Frontend Configuration
