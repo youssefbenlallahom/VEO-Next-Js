@@ -510,7 +510,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       const merged: any = mergeCandidateWithReport(candidate, candidateReports)
       const extracted = extractedSkillsMap[merged.name] || []
       const reportSkills = extractSkillsFromScoreDetails(merged.scoreDetails)
-      const uiSkills = extracted.length ? extracted : (reportSkills.length ? reportSkills : merged.skills)
+      const uiSkills = (extracted.length ? extracted : (reportSkills.length ? reportSkills : merged.skills))
+        .filter((skill: string) => skill && skill.toLowerCase() !== 'country')
       // Don't add matchInfo for actual applicants - they should show "Applied", not "Recommended"
       return { ...merged, uiSkills, matchInfo: null, isApplied: true }
     })
@@ -519,7 +520,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       const merged: any = mergeCandidateWithReport(sc, candidateReports)
       const extracted = extractedSkillsMap[merged.name] || []
       const reportSkills = extractSkillsFromScoreDetails(merged.scoreDetails)
-      const uiSkills = extracted.length ? extracted : (reportSkills.length ? reportSkills : merged.skills)
+      const uiSkills = (extracted.length ? extracted : (reportSkills.length ? reportSkills : merged.skills))
+        .filter((skill: string) => skill && skill.toLowerCase() !== 'country')
       return { ...merged, uiSkills, isAddedFromSuggestions: true }
     })
     
@@ -533,7 +535,8 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
         const merged: any = mergeCandidateWithReport(sc, candidateReports)
         const extracted = extractedSkillsMap[merged.name] || []
         const reportSkills = extractSkillsFromScoreDetails(merged.scoreDetails)
-        const uiSkills = extracted.length ? extracted : (reportSkills.length ? reportSkills : merged.skills)
+        const uiSkills = (extracted.length ? extracted : (reportSkills.length ? reportSkills : merged.skills))
+          .filter((skill: string) => skill && skill.toLowerCase() !== 'country')
         return { 
           ...merged, 
           uiSkills, 
@@ -1340,7 +1343,9 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                           <span className="font-medium">{applicant.email}</span>
                         </div>
                         <div className="flex flex-wrap gap-1 mb-3">
-                          {(applicant.uiSkills || applicant.skills || []).slice(0, 4).map((skill: string, index: number) => (
+                          {(applicant.uiSkills || applicant.skills || [])
+                            .filter((skill: string) => skill && skill.toLowerCase() !== 'country')
+                            .slice(0, 4).map((skill: string, index: number) => (
                             <button
                               key={index}
                               type="button"
@@ -1353,9 +1358,13 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
                               </Badge>
                             </button>
                           ))}
-                          {((applicant.uiSkills || applicant.skills || []).length > 4) && (
+                          {((applicant.uiSkills || applicant.skills || [])
+                            .filter((skill: string) => skill && skill.toLowerCase() !== 'country')
+                            .length > 4) && (
                             <Badge variant="secondary" className="text-xs bg-veo-green/10 text-veo-green">
-                              +{(applicant.uiSkills || applicant.skills || []).length - 4}
+                              +{(applicant.uiSkills || applicant.skills || [])
+                                .filter((skill: string) => skill && skill.toLowerCase() !== 'country')
+                                .length - 4}
                             </Badge>
                           )}
                         </div>
