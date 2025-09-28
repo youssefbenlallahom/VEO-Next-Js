@@ -122,7 +122,7 @@ No additional environment variables needed for basic setup.
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/youssefbenlallahom/VEO-Next-Js.git
+git clone -b finale https://github.com/youssefbenlallahom/VEO-Next-Js.git
 cd "VEO-Next-Js"
 ```
 
