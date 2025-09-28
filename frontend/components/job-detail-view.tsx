@@ -286,6 +286,49 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
     return cleaned
   }
 
+  // Load existing recommended candidates from database/API
+  const loadExistingRecommendedCandidates = async () => {
+    if (!job?.title || !allCandidates || allCandidates.length === 0) return
+    
+    try {
+      console.log('🔍 Loading existing recommended candidates from database...')
+      const recRes = await fetch(`/api/job-recommended-candidates/${encodeURIComponent(job.title)}`)
+      if (!recRes.ok) {
+        if (recRes.status === 404) {
+          console.log('ℹ️ No existing recommendations found for this job')
+          setSuggestedCandidates([])
+          return
+        }
+        console.error('❌ Failed to load recommendations:', recRes.status)
+        return
+      }
+      
+      const recData = await recRes.json()
+      const recommendedNames: string[] = Array.isArray(recData?.recommended_candidates) ? recData.recommended_candidates : []
+      
+      if (recommendedNames.length === 0) {
+        console.log('ℹ️ No recommended candidates found in database')
+        setSuggestedCandidates([])
+        return
+      }
+      
+      // Filter candidates by recommended names (case insensitive)
+      const appliedNames = new Set((candidates || []).map(c => String(c.name).toLowerCase()))
+      const recommendedSet = new Set(recommendedNames.map(n => String(n).toLowerCase()))
+      const matchedCandidates = allCandidates.filter(c => 
+        recommendedSet.has(String(c.name).toLowerCase()) && 
+        !appliedNames.has(String(c.name).toLowerCase())
+      )
+      
+      console.log(`✅ Loaded ${matchedCandidates.length} existing recommended candidates from database`)
+      setSuggestedCandidates(matchedCandidates)
+      
+    } catch (error) {
+      console.error('❌ Error loading existing recommendations:', error)
+      setSuggestedCandidates([])
+    }
+  }
+
   // Find recommended non-applicants using the multi endpoint
   const runCrossJobRecommendations = async () => {
     console.log('🔍 Starting cross-job recommendations...')
@@ -392,6 +435,11 @@ export function JobDetailView({ jobId }: JobDetailViewProps) {
       setIsSuggesting(false)
     }
   }
+
+  // Load existing recommended candidates from database when job and candidate data is ready
+  useEffect(() => {
+    loadExistingRecommendedCandidates()
+  }, [job?.title, allCandidates, candidates])
 
   // Load any previously added candidates for this job from localStorage once candidates and allCandidates are ready
   useEffect(() => {
