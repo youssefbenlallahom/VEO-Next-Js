@@ -502,7 +502,17 @@ The database file `candidate_reports.db` is created at the project root.
   - Backend as Azure App Service with managed identity/secrets. Frontend as Static Web Apps or Vercel. Use Azure Files for SQLite or migrate to a hosted DB.
 
 
-## Contributing
+## 🤝 Contributing
+
+This project was developed collaboratively during a 2-month internship by a team of 3 developers:
+
+- **Nour Jazi**
+- **Doua Boudokhan**  
+- **Youssef Ben Lallahom**
+
+All team members worked together on every aspect of the project including frontend development, backend architecture, AI integration, database design, and UI/UX through collaborative coding sessions, pair programming, and shared problem-solving.
+
+### For Future Contributors
 
 1. Fork the repo and create a feature branch.
 2. Run both apps locally and add/adjust tests.
