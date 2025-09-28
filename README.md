@@ -511,6 +511,7 @@ This project was developed collaboratively during a 2-month internship by a team
 - **Youssef Ben Lallahom**
 
 All team members worked together on every aspect of the project including frontend development, backend architecture, AI integration, database design, and UI/UX through collaborative coding sessions, pair programming, and shared problem-solving.
+h
 
 ### For Future Contributors
 
