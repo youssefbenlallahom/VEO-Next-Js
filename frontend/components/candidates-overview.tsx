@@ -829,39 +829,7 @@ export function CandidatesOverview() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="Fit width" onClick={()=> setPreviewZoomMode('width')} disabled={previewZoomMode==='width'}>
-                    <Maximize2 className="h-4 w-4" />
-                  </Button>
-                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="100%" onClick={()=> setPreviewZoomMode('100')} disabled={previewZoomMode==='100'}>
-                    {previewZoomMode==='100' ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    title="Open in new tab"
-                    onClick={() => window.open(viewingCV.cvUrl, '_blank')}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    title="Download"
-                    onClick={() => window.open(viewingCV.cvUrl, '_blank')}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-gray-500"
-                    title="Close"
-                    onClick={() => setViewingCV(null)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  {/* No buttons - using Dialog's built-in close button only */}
                 </div>
               </div>
               <div className="flex-1 relative bg-neutral-900/95">
