@@ -1,0 +1,59 @@
+Internal Job Title: IT Project Manager
+Position Type: Execution
+Structure/Committee: IT / Board
+Reports to: IT PMO Team Leader
+Location: Tunis / Sousse
+POSITION INTERFACE
+Cross-functional collaboration within Veoworldwide: collaborates with the IT Director, subordinate team members, IT, COMIT, Payroll and Personnel Administration, HR, Site Manager, all Veoworldwide users.
+Cross-functional collaboration within NOZ: collaborates with IT France, collaborates with IT Veoworldwide.
+PURPOSE OF THE POSITION
+Experienced IT project manager to manage multiple projects and ensure oversight of all workflows. In this role, you will use Waterfall (V) or Agile IT project management methodologies and provide leadership, direction, and integrate activities with other IT departments to ensure successful implementation and support.
+KEY POSITION RESPONSIBILITIES
+Operational Responsibilities:
+
+Prioritize tasks, set deadlines, and assign staff to various deliverables so that each project can start with minimal loss of time and resources
+Lead and motivate a team composed of various stakeholders from all NOZ departments (sales, marketing, logistics, IT services, HR, Finance, etc.)
+Collaborate with other business or IT team leaders engaged in problem-solving
+Ensure that team members follow the work schedule and strategy
+Foster cooperation within the team, help PMO Team Leader anticipate challenges and intervene in alert and crisis situations by implementing solutions
+
+Reporting Responsibilities:
+
+Use effective PM methodology tools such as Jira or Tempo to capture all data concerning project performance
+Provide regular reports on project progress, milestones, key performance indicators, risks, and budget
+Support IT PMO KPIs and other efficiency reports
+Communicate effectively with all parties involved in the project using standardized methods and approaches such as RACI
+
+Internal Client Responsibilities:
+
+Ensure that standards are met and clearly defined throughout the quality execution process of each project
+Improve new and pre-existing processes
+Responsible for successful achievement of SLA and set objectives
+
+KEY PERFORMANCE INDICATORS
+The direct manager communicates monthly, quarterly, and annual key performance indicators to the employee.
+Operational KPIs:
+
+Support achievement of PMO team operational objectives
+Meet requested deadlines for LDs where responsible as Project Manager
+Study Monitoring - compliance with delivery deadlines (number of late projects <5%); completed project compared to estimate (maximum deviation of 10%)
+
+POSITION REQUIREMENTS
+Respect internal policies, regulations, and company work procedures:
+The employee will rigorously follow the company's internal policies and work procedures, as regularly communicated and/or available on the company intranet/website and OBSYS application.
+The employee will comply with the company's internal regulations and individual employment contract.
+University Degree/Foreign Languages/Technical Expertise:
+
+Education level: higher education / engineering cycle
+Foreign languages: French, English - minimum B2
+University degree in computer science, information technology, business administration, or related field. A master's degree is preferable
+Communication and interpersonal skills
+Project management certifications such as PMP, PRINCE2, or others are a plus
+
+Experience:
+Minimum of 5 years of experience in project management, as Project Manager, with a focus on IT projects.
+Key Skills:
+
+Strong understanding of project management methodologies such as Agile or Waterfall
+Clear use of tools and experience managing a project > 3 years: Jira Atlassian / MS Azure DevOps / Microsoft Project or similar
+Experience working with cross-functional teams and stakeholders at all levels of the organization

@@ -1590,50 +1590,64 @@ Sort skills alphabetically within categories
         ]
         
         response = llm.call(messages)
-        
-        # Extract JSON from response
-        match = re.search(r'\{.*\}', response, re.DOTALL)
-        if match:
-            skills_json = match.group(0)
-            skills_data = json.loads(skills_json)
+
+        # Attempt to parse the first JSON object from the response
+        cleaned_response = re.sub(r"```(?:json)?", "", response).strip()
+        decoder = json.JSONDecoder()
+        skills_data = None
+
+        for idx, char in enumerate(cleaned_response):
+            if char != '{':
+                continue
+            try:
+                candidate_obj, _ = decoder.raw_decode(cleaned_response[idx:])
+                skills_data = candidate_obj
+                break
+            except json.JSONDecodeError:
+                continue
+
+        if skills_data is None:
+            fallback = _extract_json_fallback(cleaned_response)
+            if fallback is not None:
+                skills_data = fallback
+            else:
+                raise ValueError("Failed to extract skills JSON from Azure AI response")
+
+        # Ensure we have the expected structure
+        hard_skills_dict = skills_data.get('hard_skills', {})
             
-            # Ensure we have the expected structure
-            hard_skills_dict = skills_data.get('hard_skills', {})
-            
-            # Return both categorized and flattened skills
-            categorized_skills = {}
-            all_skills = []
-            
-            if isinstance(hard_skills_dict, dict):
-                for category, skills_list in hard_skills_dict.items():
-                    if isinstance(skills_list, list) and skills_list:
-                        # Clean and deduplicate skills in this category
-                        clean_skills = []
-                        for skill in skills_list:
-                            if skill and skill.strip():
-                                clean_skill = skill.strip()
-                                if clean_skill not in clean_skills:
-                                    clean_skills.append(clean_skill)
-                        
-                        if clean_skills:  # Only add non-empty categories
-                            categorized_skills[category] = clean_skills
-                            all_skills.extend(clean_skills)
-            
-            # Remove duplicates from flattened list while preserving order
-            seen = set()
-            unique_skills = []
-            for skill in all_skills:
-                if skill not in seen:
-                    seen.add(skill)
-                    unique_skills.append(skill)
-            
-            # Return both structured and flattened data
-            return {
-                'hard_skills': unique_skills,
-                'categorized_skills': categorized_skills
-            }
-        else:
-            raise ValueError("Failed to extract skills JSON from Azure AI response")
+        # Return both categorized and flattened skills
+        categorized_skills = {}
+        all_skills = []
+
+        if isinstance(hard_skills_dict, dict):
+            for category, skills_list in hard_skills_dict.items():
+                if isinstance(skills_list, list) and skills_list:
+                    # Clean and deduplicate skills in this category
+                    clean_skills = []
+                    for skill in skills_list:
+                        if skill and skill.strip():
+                            clean_skill = skill.strip()
+                            if clean_skill not in clean_skills:
+                                clean_skills.append(clean_skill)
+
+                    if clean_skills:  # Only add non-empty categories
+                        categorized_skills[category] = clean_skills
+                        all_skills.extend(clean_skills)
+
+        # Remove duplicates from flattened list while preserving order
+        seen = set()
+        unique_skills = []
+        for skill in all_skills:
+            if skill not in seen:
+                seen.add(skill)
+                unique_skills.append(skill)
+
+        # Return both structured and flattened data
+        return {
+            'hard_skills': unique_skills,
+            'categorized_skills': categorized_skills
+        }
             
     except json.JSONDecodeError as e:
         raise ValueError(f"Failed to parse skills JSON: {str(e)}")

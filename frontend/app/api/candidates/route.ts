@@ -115,11 +115,8 @@ export async function POST(req: NextRequest) {
       if (!fullName || !jobTitle) continue
       const jobFolderPath = path.join(assetsPath, jobTitle)
       if (!fs.existsSync(jobFolderPath)) fs.mkdirSync(jobFolderPath, { recursive: true })
-      // Ensure meta file has location if not already set
-      const metaPath = path.join(jobFolderPath, 'job-meta.json')
-      if (!fs.existsSync(metaPath)) {
-        fs.writeFileSync(metaPath, JSON.stringify({ location }, null, 2), 'utf-8')
-      }
+      // Ensure job description metadata file exists (legacy job-meta.json replaced)
+      upsertJobDescriptionMetadata(jobFolderPath, { location })
       const arrayBuffer = await file.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
       const safeName = slugifyName(fullName)
@@ -249,4 +246,44 @@ function getRandomDate(): string {
   const end = new Date()
   const randomDate = new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()))
   return randomDate.toISOString().split('T')[0]
+}
+
+function upsertJobDescriptionMetadata(jobFolderPath: string, updates: { location?: string; department?: string }) {
+  const descriptorPath = path.join(jobFolderPath, 'job-description.json')
+  const legacyPath = path.join(jobFolderPath, 'job-meta.json')
+  let current: any = {}
+
+  if (fs.existsSync(descriptorPath)) {
+    try {
+      const raw = fs.readFileSync(descriptorPath, 'utf-8')
+      current = JSON.parse(raw)
+    } catch (err) {
+      console.warn('Failed to parse existing job-description.json, recreating file.', err)
+      current = {}
+    }
+  }
+
+  if (typeof current !== 'object' || current === null || Array.isArray(current)) {
+    current = {}
+  }
+
+  if (updates.location) {
+    current.location = updates.location
+  }
+
+  if (updates.department) {
+    current.department = updates.department
+  }
+
+  current.updatedAt = new Date().toISOString()
+
+  fs.writeFileSync(descriptorPath, JSON.stringify(current, null, 2), 'utf-8')
+
+  if (fs.existsSync(legacyPath)) {
+    try {
+      fs.unlinkSync(legacyPath)
+    } catch (err) {
+      console.warn('Failed to remove legacy job-meta.json file.', err)
+    }
+  }
 }

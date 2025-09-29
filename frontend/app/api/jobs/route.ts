@@ -61,17 +61,9 @@ export async function GET() {
       // Read metadata if present
     let location = "Tunisia"
     let departmentOverride: string | undefined
-      const metaPath = path.join(jobPath, 'job-meta.json')
-      if (fs.existsSync(metaPath)) {
-        try {
-          const metaRaw = fs.readFileSync(metaPath, 'utf-8')
-          const meta = JSON.parse(metaRaw)
-          if (meta.location) location = meta.location
+      const meta = readJobDescriptionMetadata(jobPath)
+      if (meta.location) location = meta.location
       if (meta.department) departmentOverride = meta.department
-        } catch (e) {
-          // ignore meta parse errors
-        }
-      }
 
       const job: Job = {
         id: jobFolder.toLowerCase().replace(/\s+/g, '-'),
@@ -129,7 +121,7 @@ export async function POST(req: NextRequest) {
         fs.writeFileSync(path.join(jobFolderPath, 'job-description.txt'), description, 'utf-8')
       }
       // Write meta
-  fs.writeFileSync(path.join(jobFolderPath, 'job-meta.json'), JSON.stringify({ location, department: department || getDepartmentFromTitle(title) }, null, 2), 'utf-8')
+  writeJobDescriptionMetadata(jobFolderPath, { location, department: department || getDepartmentFromTitle(title) })
       return NextResponse.json({ message: 'Job created', title: safeTitle })
     } else {
       return NextResponse.json({ error: 'Unsupported content type' }, { status: 415 })
@@ -199,4 +191,74 @@ function getPriorityFromApplicants(count: number): "High" | "Medium" | "Low" {
   if (count >= 10) return "High"
   if (count >= 5) return "Medium"
   return "Low"
+}
+
+function readJobDescriptionMetadata(jobPath: string): { location?: string; department?: string } {
+  const descriptorPath = path.join(jobPath, 'job-description.json')
+  const legacyPath = path.join(jobPath, 'job-meta.json')
+
+  const tryParse = (filePath: string) => {
+    if (!fs.existsSync(filePath)) return null
+    try {
+      const raw = fs.readFileSync(filePath, 'utf-8')
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const location = parsed.location ?? parsed.metadata?.location
+        const department = parsed.department ?? parsed.metadata?.department
+        return { location, department }
+      }
+    } catch (error) {
+      console.warn(`Failed to parse job metadata at ${filePath}:`, error)
+    }
+    return null
+  }
+
+  return tryParse(descriptorPath) ?? tryParse(legacyPath) ?? {}
+}
+
+function writeJobDescriptionMetadata(jobFolderPath: string, updates: { location?: string; department?: string }) {
+  const descriptorPath = path.join(jobFolderPath, 'job-description.json')
+  const legacyPath = path.join(jobFolderPath, 'job-meta.json')
+
+  let current: any = {}
+
+  const candidatePaths = [descriptorPath, legacyPath]
+  for (const filePath of candidatePaths) {
+    if (!fs.existsSync(filePath)) continue
+    try {
+      const raw = fs.readFileSync(filePath, 'utf-8')
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        current = parsed
+        break
+      }
+    } catch (error) {
+      console.warn(`Failed to parse existing job metadata at ${filePath}, recreating file.`, error)
+    }
+  }
+
+  if (!current || typeof current !== 'object' || Array.isArray(current)) {
+    current = {}
+  }
+
+  if (updates.location) {
+    current.location = updates.location
+  }
+
+  if (updates.department) {
+    current.department = updates.department
+  }
+
+  current.updatedAt = new Date().toISOString()
+
+  fs.writeFileSync(descriptorPath, JSON.stringify(current, null, 2), 'utf-8')
+
+  // Clean up legacy file if it exists
+  if (fs.existsSync(legacyPath)) {
+    try {
+      fs.unlinkSync(legacyPath)
+    } catch (error) {
+      console.warn(`Failed to remove legacy job-meta.json at ${legacyPath}:`, error)
+    }
+  }
 }

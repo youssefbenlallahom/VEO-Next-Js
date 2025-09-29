@@ -82,6 +82,9 @@ export function JobSkillsModal({ isOpen, onClose, onCriteriaSaved, job }: JobSki
                     categorizedSkills['Languages'] = []
                   }
                   categorizedSkills['Languages'].push(category)
+                } else {
+                  // For other individual skills, create their own category
+                  categorizedSkills[category] = [category]
                 }
               }
             })
@@ -95,11 +98,13 @@ export function JobSkillsModal({ isOpen, onClose, onCriteriaSaved, job }: JobSki
             const catWeights: Record<string, number> = {}
             const langWeights: Record<string, number> = {}
             
-            // Distribute the saved weights
+            // Distribute ALL saved weights properly
             Object.entries(weights).forEach(([skill, weight]) => {
-              if (langs.includes(skill) || skill.includes("Level") || skill.includes("Language")) {
+              // Check if this is a language skill
+              if (langs.includes(skill) || (skill.includes("Level") || skill.includes("Language")) && !skill.includes("Experience")) {
                 langWeights[skill] = weight as number
-              } else if (cats.includes(skill)) {
+              } else {
+                // Everything else goes to category weights
                 catWeights[skill] = weight as number
               }
             })
