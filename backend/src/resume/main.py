@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from .database import get_db, CandidateReport
 import uvicorn
 
@@ -1783,8 +1784,10 @@ def search_candidates(
     if max_score is not None:
         query = query.filter(CandidateReport.total_weighted_score <= max_score)
     if job_title:
-        # Exact match to avoid mixing similar titles (e.g., 'Data Analyst' vs 'HR Data Analyst')
-        query = query.filter(CandidateReport.applied_job_title == job_title)
+        normalized_title = job_title.strip()
+        if normalized_title:
+            # Case-insensitive exact match to avoid missing folders with different casing
+            query = query.filter(func.lower(CandidateReport.applied_job_title) == normalized_title.lower())
     if recommended is not None:
         query = query.filter(CandidateReport.is_recommended == recommended)
     
